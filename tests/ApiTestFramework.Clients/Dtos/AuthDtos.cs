@@ -1,0 +1,42 @@
+// ==========================================================================
+// PLACEHOLDER DTOs — These will be replaced by NSwag-generated code.
+// Run generate-clients.bat to regenerate from swagger/auth-swagger.json.
+// Structure must match the nested AuthResponse returned by AuthService.
+// ==========================================================================
+
+namespace ApiTestFramework.Clients.AuthService;
+
+public class RegisterRequest
+{
+    public string Username { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+    public string Role { get; set; } = "User";
+}
+
+public class LoginRequest
+{
+    public string Username { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+}
+
+public class AuthResponse
+{
+    public TokenInfo Token { get; set; } = new();
+    public UserProfile User { get; set; } = new();
+}
+
+public class TokenInfo
+{
+    public string AccessToken { get; set; } = string.Empty;
+    public string TokenType { get; set; } = "Bearer";
+    public System.DateTimeOffset ExpiresAt { get; set; }
+    public int ExpiresInSeconds { get; set; }
+}
+
+public class UserProfile
+{
+    public string Username { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+}

@@ -1,0 +1,229 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Product Service API",
+    "description": "Microservice for managing products",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/products": {
+      "get": {
+        "tags": [ "Products" ],
+        "operationId": "GetAllProducts",
+        "security": [ { "Bearer": [] } ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Product" }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": [ "Products" ],
+        "operationId": "CreateProduct",
+        "security": [ { "Bearer": [] } ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateProductRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Product" }
+              }
+            }
+          },
+          "400": { "description": "Bad Request" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/products/{id}": {
+      "get": {
+        "tags": [ "Products" ],
+        "operationId": "GetProductById",
+        "security": [ { "Bearer": [] } ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int32" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Product" }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Not Found" }
+        }
+      },
+      "put": {
+        "tags": [ "Products" ],
+        "operationId": "UpdateProduct",
+        "security": [ { "Bearer": [] } ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int32" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateProductRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Product" }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Not Found" }
+        }
+      },
+      "delete": {
+        "tags": [ "Products" ],
+        "operationId": "DeleteProduct",
+        "security": [ { "Bearer": [] } ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int32" }
+          }
+        ],
+        "responses": {
+          "204": { "description": "No Content" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Not Found" }
+        }
+      }
+    },
+    "/api/products/category/{category}": {
+      "get": {
+        "tags": [ "Products" ],
+        "operationId": "GetProductsByCategory",
+        "security": [ { "Bearer": [] } ],
+        "parameters": [
+          {
+            "name": "category",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Product" }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int32" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "price": { "$ref": "#/components/schemas/PriceInfo" },
+          "inventory": { "$ref": "#/components/schemas/InventoryInfo" },
+          "category": { "type": "string" },
+          "isActive": { "type": "boolean" },
+          "audit": { "$ref": "#/components/schemas/AuditInfo" }
+        }
+      },
+      "PriceInfo": {
+        "type": "object",
+        "properties": {
+          "amount": { "type": "number", "format": "decimal" },
+          "currency": { "type": "string", "default": "USD" }
+        }
+      },
+      "InventoryInfo": {
+        "type": "object",
+        "properties": {
+          "stockQuantity": { "type": "integer", "format": "int32" },
+          "inStock": { "type": "boolean" }
+        }
+      },
+      "AuditInfo": {
+        "type": "object",
+        "properties": {
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "CreateProductRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "price": { "type": "number", "format": "decimal" },
+          "stockQuantity": { "type": "integer", "format": "int32" },
+          "category": { "type": "string" }
+        }
+      },
+      "UpdateProductRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "nullable": true },
+          "description": { "type": "string", "nullable": true },
+          "price": { "type": "number", "format": "decimal", "nullable": true },
+          "stockQuantity": { "type": "integer", "format": "int32", "nullable": true },
+          "category": { "type": "string", "nullable": true },
+          "isActive": { "type": "boolean", "nullable": true }
+        }
+      }
+    }
+  }
+}

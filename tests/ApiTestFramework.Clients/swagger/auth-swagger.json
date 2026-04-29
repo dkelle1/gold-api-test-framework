@@ -1,0 +1,106 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Auth Service API",
+    "description": "Microservice for authentication and JWT token generation",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "tags": [ "Auth" ],
+        "operationId": "Register",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" }
+              }
+            }
+          },
+          "400": { "description": "Bad Request" },
+          "409": { "description": "Conflict" }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [ "Auth" ],
+        "operationId": "Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" }
+              }
+            }
+          },
+          "400": { "description": "Bad Request" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RegisterRequest": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string" },
+          "email": { "type": "string" },
+          "password": { "type": "string" },
+          "role": { "type": "string", "default": "User" }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string" },
+          "password": { "type": "string" }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "$ref": "#/components/schemas/TokenInfo" },
+          "user": { "$ref": "#/components/schemas/UserProfile" }
+        }
+      },
+      "TokenInfo": {
+        "type": "object",
+        "properties": {
+          "accessToken": { "type": "string" },
+          "tokenType": { "type": "string", "default": "Bearer" },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "expiresInSeconds": { "type": "integer", "format": "int32" }
+        }
+      },
+      "UserProfile": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string" },
+          "email": { "type": "string" },
+          "role": { "type": "string" }
+        }
+      }
+    }
+  }
+}
