@@ -74,6 +74,9 @@ pipeline {
 
     post {
         always {
+            // Capture service logs before teardown (useful for debugging)
+            sh 'docker compose logs --tail=100 || true'
+
             // Allure report (Allure.NUnit writes to allure-results/ in workspace root)
             allure([
                 includeProperties: false,
@@ -101,7 +104,6 @@ pipeline {
         }
 
         failure {
-            sh 'docker compose logs --tail=100 || true'
             echo 'Tests failed — check the Allure report for details.'
         }
     }
