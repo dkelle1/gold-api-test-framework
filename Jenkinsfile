@@ -1,4 +1,5 @@
 pipeline {
+    // Run on the Jenkins controller which has Docker socket access
     agent { label 'built-in' }
 
     environment {
@@ -7,6 +8,7 @@ pipeline {
         COMPOSE_PROJECT_NAME         = "api-test-${BUILD_NUMBER}"
         ALLURE_RESULTS_DIR           = 'allure-results'
         TEST_RESULTS_DIR             = 'TestResults'
+        DOTNET_IMAGE                 = 'mcr.microsoft.com/dotnet/sdk:8.0'
     }
 
     options {
@@ -23,30 +25,35 @@ pipeline {
         }
 
         stage('Restore & Build') {
+            agent {
+                docker {
+                    image "${DOTNET_IMAGE}"
+                    reuseNode true
+                }
+            }
             steps {
-                bat 'dotnet restore ApiTestFramework.sln'
-                bat 'dotnet build ApiTestFramework.sln -c Release --no-restore'
+                sh 'dotnet restore ApiTestFramework.sln'
+                sh 'dotnet build ApiTestFramework.sln -c Release --no-restore'
             }
         }
 
         stage('Start Services') {
             steps {
-                bat 'docker compose up -d --build'
-                powershell '''
-                    Write-Host "Waiting for services to become healthy..."
-                    $timeout = 60
-                    for ($i = 1; $i -le $timeout; $i++) {
-                        $auth = try { (Invoke-WebRequest http://localhost:5300/swagger/v1/swagger.json -UseBasicParsing -TimeoutSec 2).StatusCode } catch { 0 }
-                        $prod = try { (Invoke-WebRequest http://localhost:5100/swagger/v1/swagger.json -UseBasicParsing -TimeoutSec 2).StatusCode } catch { 0 }
-                        $ord  = try { (Invoke-WebRequest http://localhost:5200/swagger/v1/swagger.json -UseBasicParsing -TimeoutSec 2).StatusCode } catch { 0 }
-                        Write-Host "  auth=$auth product=$prod order=$ord (attempt $i/$timeout)"
-                        if ($auth -eq 200 -and $prod -eq 200 -and $ord -eq 200) {
-                            Write-Host "All services ready."
+                sh 'docker compose up -d --build'
+                sh '''
+                    echo "Waiting for services to become healthy..."
+                    for i in $(seq 1 60); do
+                        AUTH=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5300/swagger/v1/swagger.json 2>/dev/null || echo 0)
+                        PROD=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5100/swagger/v1/swagger.json 2>/dev/null || echo 0)
+                        ORD=$(curl  -s -o /dev/null -w "%{http_code}" http://localhost:5200/swagger/v1/swagger.json 2>/dev/null || echo 0)
+                        echo "  auth=$AUTH product=$PROD order=$ORD (attempt $i/60)"
+                        if [ "$AUTH" = "200" ] && [ "$PROD" = "200" ] && [ "$ORD" = "200" ]; then
+                            echo "All services ready."
                             exit 0
-                        }
-                        Start-Sleep -Seconds 5
-                    }
-                    Write-Host "Services did not become ready in time."
+                        fi
+                        sleep 5
+                    done
+                    echo "Services did not become ready in time."
                     docker compose logs
                     exit 1
                 '''
@@ -54,14 +61,22 @@ pipeline {
         }
 
         stage('Run Tests') {
+            agent {
+                docker {
+                    image "${DOTNET_IMAGE}"
+                    // --network host lets the container reach localhost:5300/5100/5200
+                    args  '--network host'
+                    reuseNode true
+                }
+            }
             steps {
-                powershell """
-                    if (-not (Test-Path ${TEST_RESULTS_DIR})) { New-Item -ItemType Directory ${TEST_RESULTS_DIR} | Out-Null }
-                    dotnet test tests/ApiTestFramework.Tests/ApiTestFramework.Tests.csproj `
-                        -c Release --no-build `
-                        --logger "trx;LogFileName=results.trx" `
-                        --results-directory ${TEST_RESULTS_DIR} `
-                        -- NUnit.WorkDirectory="${env:WORKSPACE}"
+                sh """
+                    mkdir -p ${TEST_RESULTS_DIR}
+                    dotnet test tests/ApiTestFramework.Tests/ApiTestFramework.Tests.csproj \\
+                        -c Release --no-build \\
+                        --logger "trx;LogFileName=results.trx" \\
+                        --results-directory ${TEST_RESULTS_DIR} \\
+                        -- NUnit.WorkDirectory="${WORKSPACE}"
                 """
             }
         }
@@ -69,6 +84,7 @@ pipeline {
 
     post {
         always {
+            // Allure report (Allure.NUnit writes to allure-results/ in workspace root)
             allure([
                 includeProperties: false,
                 jdk              : '',
@@ -77,6 +93,7 @@ pipeline {
                 results          : [[path: "${ALLURE_RESULTS_DIR}"]]
             ])
 
+            // TRX as JUnit for the trend graph
             junit(
                 testResults          : "${TEST_RESULTS_DIR}/*.trx",
                 allowEmptyResults    : true,
@@ -86,7 +103,7 @@ pipeline {
             archiveArtifacts artifacts: "${TEST_RESULTS_DIR}/**/*,${ALLURE_RESULTS_DIR}/**/*",
                              allowEmptyArchive: true
 
-            bat 'docker compose down -v || exit 0'
+            sh 'docker compose down -v || true'
         }
 
         success {
@@ -94,7 +111,7 @@ pipeline {
         }
 
         failure {
-            bat 'docker compose logs --tail=100 || exit 0'
+            sh 'docker compose logs --tail=100 || true'
             echo 'Tests failed — check the Allure report for details.'
         }
     }
