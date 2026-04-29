@@ -1,8 +1,4 @@
-// ==========================================================================
-// PLACEHOLDER DTOs — These will be replaced by NSwag-generated code.
-// Run generate-clients.bat to regenerate from swagger/order-swagger.json.
-// Structure must match the nested OrderResponse returned by OrderService.
-// ==========================================================================
+using ApiTestFramework.Clients.Common;
 
 namespace ApiTestFramework.Clients.OrderService;
 
@@ -28,12 +24,6 @@ public class CustomerInfo
 {
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
-}
-
-public class AuditInfo
-{
-    public System.DateTimeOffset CreatedAt { get; set; }
-    public System.DateTimeOffset? UpdatedAt { get; set; }
 }
 
 public enum OrderStatus

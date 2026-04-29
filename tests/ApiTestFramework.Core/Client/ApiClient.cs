@@ -1,3 +1,4 @@
+using ApiTestFramework.Core.Auth;
 using ApiTestFramework.Core.Logging;
 using RestSharp;
 using Serilog;
@@ -37,6 +38,7 @@ public class ApiClient : IDisposable
     /// </summary>
     public async Task<RestResponse> ExecuteAsync(RestRequest request)
     {
+        InjectBearerToken(request);
         _logger.Information("[{Service}] {Method} {Resource}", _serviceName, request.Method, request.Resource);
 
         AllureRequestLogger.AttachRequest(request, _baseUrl, _serviceName);
@@ -57,6 +59,7 @@ public class ApiClient : IDisposable
     /// </summary>
     public async Task<RestResponse<T>> ExecuteAsync<T>(RestRequest request)
     {
+        InjectBearerToken(request);
         _logger.Information("[{Service}] {Method} {Resource}", _serviceName, request.Method, request.Resource);
 
         AllureRequestLogger.AttachRequest(request, _baseUrl, _serviceName);
@@ -87,5 +90,20 @@ public class ApiClient : IDisposable
     {
         _client?.Dispose();
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Auto-injects a Bearer token from <see cref="TokenProvider"/> unless the request
+    /// already carries an Authorization header (explicit override, e.g. in negative auth tests).
+    /// </summary>
+    private void InjectBearerToken(RestRequest request)
+    {
+        if (TokenProvider.HasToken &&
+            !request.Parameters.Any(p =>
+                p.Type == ParameterType.HttpHeader &&
+                string.Equals(p.Name, "Authorization", StringComparison.OrdinalIgnoreCase)))
+        {
+            request.AddHeader("Authorization", $"Bearer {TokenProvider.Token}");
+        }
     }
 }

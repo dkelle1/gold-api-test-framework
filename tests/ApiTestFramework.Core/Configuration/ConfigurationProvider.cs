@@ -4,27 +4,18 @@ namespace ApiTestFramework.Core.Configuration;
 
 public static class ConfigurationProvider
 {
-    private static IConfiguration? _configuration;
-
-    public static IConfiguration Configuration
+    private static readonly Lazy<IConfiguration> _lazyConfiguration = new(() =>
     {
-        get
-        {
-            if (_configuration == null)
-            {
-                var environment = System.Environment.GetEnvironmentVariable("TEST_ENVIRONMENT") ?? "Development";
+        var environment = System.Environment.GetEnvironmentVariable("TEST_ENVIRONMENT") ?? "Development";
+        return new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.test.json", optional: false, reloadOnChange: false)
+            .AddJsonFile($"appsettings.test.{environment}.json", optional: true, reloadOnChange: false)
+            .AddEnvironmentVariables(prefix: "TEST_")
+            .Build();
+    });
 
-                _configuration = new ConfigurationBuilder()
-                    .SetBasePath(AppContext.BaseDirectory)
-                    .AddJsonFile("appsettings.test.json", optional: false, reloadOnChange: false)
-                    .AddJsonFile($"appsettings.test.{environment}.json", optional: true, reloadOnChange: false)
-                    .AddEnvironmentVariables(prefix: "TEST_")
-                    .Build();
-            }
-
-            return _configuration;
-        }
-    }
+    public static IConfiguration Configuration => _lazyConfiguration.Value;
 
     public static TestConfiguration GetTestConfiguration()
     {

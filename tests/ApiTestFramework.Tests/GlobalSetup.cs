@@ -6,6 +6,7 @@ using ApiTestFramework.Core.Client;
 using ApiTestFramework.Core.Configuration;
 using ApiTestFramework.Core.Constants;
 using ApiTestFramework.Core.DI;
+using ApiTestFramework.Steps.DataGenerators;
 using NUnit.Framework;
 using Serilog;
 
@@ -33,9 +34,8 @@ public class GlobalSetup
         // Load configuration
         var config = ConfigurationProvider.GetTestConfiguration();
         Log.Information("Environment: {Env}", config.Environment);
-        Log.Information("AuthService URL: {Url}", config.AuthService.BaseUrl);
-        Log.Information("ProductService URL: {Url}", config.ProductService.BaseUrl);
-        Log.Information("OrderService URL: {Url}", config.OrderService.BaseUrl);
+        foreach (var (name, svc) in config.Services)
+            Log.Information("{Service} URL: {Url}", name, svc.BaseUrl);
 
         // Initialize Autofac
         ContainerProvider.Initialize(builder =>
@@ -48,13 +48,8 @@ public class GlobalSetup
         // Acquire Bearer token via AuthService (direct call — no AllureStep context here)
         Log.Information("Acquiring Bearer token...");
         var authClient = ContainerProvider.ResolveNamed<ApiClient>("AuthService");
-        var registerRequest = new RegisterRequest
-        {
-            Username = "test_user_global",
-            Email = "test_global@test.com",
-            Password = "TestPass123!",
-            Role = "User"
-        };
+        // Use randomly generated credentials to avoid 409 Conflict on re-runs with a persistent DB.
+        var registerRequest = AuthDataGenerator.GenerateRegisterRequest();
         var response = await authClient.SendAsync<AuthResponse>(
             RequestFactory.Post(AuthServiceRoutes.Register, registerRequest));
 

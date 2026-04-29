@@ -1,4 +1,3 @@
-using ApiTestFramework.Core.Auth;
 using RestSharp;
 
 namespace ApiTestFramework.Core.Client;
@@ -15,7 +14,6 @@ public class RequestBuilder
     private readonly Dictionary<string, string> _queryParameters = new();
     private readonly Dictionary<string, string> _pathSegments = new();
     private object? _body;
-    private string? _contentType;
     private int? _timeoutSeconds;
 
     private RequestBuilder() { }
@@ -101,20 +99,11 @@ public class RequestBuilder
     }
 
     /// <summary>
-    /// Sets the request body (will be serialized as JSON by default).
+    /// Sets the request body (will be serialized as JSON).
     /// </summary>
     public RequestBuilder WithBody(object body)
     {
         _body = body;
-        return this;
-    }
-
-    /// <summary>
-    /// Sets the content type for the request.
-    /// </summary>
-    public RequestBuilder WithContentType(string contentType)
-    {
-        _contentType = contentType;
         return this;
     }
 
@@ -129,17 +118,10 @@ public class RequestBuilder
 
     /// <summary>
     /// Builds the RestRequest from the configured parameters.
-    /// Automatically injects the Bearer token from TokenProvider if available
-    /// and no Authorization header has been set explicitly.
+    /// Bearer token injection is handled by <see cref="ApiClient"/> — not here.
     /// </summary>
     public RestRequest Build()
     {
-        // Auto-inject Bearer token if available and not already set
-        if (!_headers.ContainsKey("Authorization") && TokenProvider.HasToken)
-        {
-            _headers["Authorization"] = $"Bearer {TokenProvider.Token}";
-        }
-
         var resource = _resource;
 
         // Replace path segments
@@ -165,16 +147,7 @@ public class RequestBuilder
         // Add body
         if (_body != null)
         {
-            if (_contentType != null)
-            {
-                request.AddStringBody(
-                    Newtonsoft.Json.JsonConvert.SerializeObject(_body),
-                    ContentType.FromDataFormat(DataFormat.Json));
-            }
-            else
-            {
-                request.AddJsonBody(_body);
-            }
+            request.AddJsonBody(_body);
         }
 
         // Set timeout

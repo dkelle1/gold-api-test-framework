@@ -36,13 +36,13 @@ public class OrderServiceSteps
     public async Task<(Order Order, int ProductId)> CreateOrderWithProductAsync()
     {
         // Step 1: Create a product first (dependency)
-        var productId = await _productSteps.CreateProductAndReturnIdAsync();
+        var product = await _productSteps.CreateProductAsync();
 
         // Step 2: Create order for that product
-        var createRequest = OrderDataGenerator.GenerateCreateOrderRequest(productId);
+        var createRequest = OrderDataGenerator.GenerateCreateOrderRequest(product.Id);
         var order = await CreateOrderAsync(createRequest);
 
-        return (order, productId);
+        return (order, product.Id);
     }
 
     /// <summary>
@@ -136,4 +136,26 @@ public class OrderServiceSteps
 
         return response;
     }
+
+    // ── Negative-path helpers (raw RestResponse for status-code assertions) ─────
+
+    /// <summary>
+    /// Attempts to create an order and returns the raw response.
+    /// Use for negative test scenarios (invalid product, validation errors).
+    /// </summary>
+    [AllureStep("Attempt to create an order (raw response)")]
+    public async Task<RestResponse<Order>> TryCreateOrderAsync(CreateOrderRequest createRequest)
+        => await _client.SendAsync<Order>(RequestFactory.Post(OrderServiceRoutes.Base, createRequest));
+
+    /// <summary>
+    /// Attempts to update an order and returns the raw response.
+    /// </summary>
+    [AllureStep("Attempt to update order with Id: {id} (raw response)")]
+    public async Task<RestResponse<Order>> TryUpdateOrderAsync(int id, UpdateOrderRequest updateRequest)
+        => await _client.SendAsync<Order>(
+            RequestBuilder.Create()
+                .WithMethod(Method.Put)
+                .WithPath(OrderServiceRoutes.ById)
+                .WithPathSegment("id", id)
+                .WithBody(updateRequest));
 }

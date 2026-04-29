@@ -146,13 +146,14 @@ public class AuthCrudTests : BaseTest
     [AllureDescription("Verify that accessing ProductService without token returns 401")]
     public async Task ProductService_WithoutToken_ReturnsUnauthorized()
     {
-        // Act — call ProductService without Bearer token
+        // Act — override the Authorization header with an empty value to prevent
+        // ApiClient’s auto-injection, simulating a request with no valid token.
         var client = ContainerProvider.ResolveNamed<ApiClient>("ProductService");
         var response = await client.SendAsync(
             RequestBuilder.Create()
                 .WithMethod(RestSharp.Method.Get)
                 .WithPath(ProductServiceRoutes.Base)
-                .WithHeader("Authorization", "")); // Explicitly clear auth header
+                .WithHeader("Authorization", ""));
 
         // Assert
         response.ShouldHaveStatusCode(HttpStatusCode.Unauthorized);
