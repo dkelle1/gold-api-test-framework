@@ -12,7 +12,7 @@ public static class ProductDataGenerator
         .RuleFor(p => p.Name, f => f.Commerce.ProductName())
         .RuleFor(p => p.Description, f => f.Commerce.ProductDescription())
         .RuleFor(p => p.Price, f => Math.Round(f.Random.Decimal(1, 999), 2))
-        .RuleFor(p => p.StockQuantity, f => f.Random.Int(1, 500))
+        .RuleFor(p => p.StockQuantity, f => f.Random.Int(20, 500))
         .RuleFor(p => p.Category, f => f.Commerce.Categories(1).First());
 
     /// <summary>
@@ -48,7 +48,7 @@ public static class ProductDataGenerator
             Name = faker.Commerce.ProductName(),
             Description = faker.Commerce.ProductDescription(),
             Price = Math.Round(faker.Random.Decimal(1, 999), 2),
-            StockQuantity = faker.Random.Int(1, 500),
+            StockQuantity = faker.Random.Int(20, 500),
             Category = faker.Commerce.Categories(1).First()
         };
     }
