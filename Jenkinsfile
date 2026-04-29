@@ -45,26 +45,18 @@ pipeline {
             steps {
                 sh 'docker compose up -d --build'
                 sh '''
+                    COMPOSE_NET="${COMPOSE_PROJECT_NAME}_default"
+                    echo "Connecting Jenkins to compose network ${COMPOSE_NET}..."
+                    # hostname = short container ID of the Jenkins container
+                    JENKINS_HOST=$(hostname)
+                    docker network connect "${COMPOSE_NET}" "${JENKINS_HOST}" || true
+
                     echo "Waiting for services to become healthy..."
-                    # Services have fixed container_name values, so we use them directly.
-                    # We reach each service on its internal port 8080 via its container IP
-                    # (Jenkins container != Docker host, so published ports are not on 'localhost').
                     for i in $(seq 1 60); do
-                        AUTH_IP=$(docker inspect auth-service    --format "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" 2>/dev/null || true)
-                        PROD_IP=$(docker inspect product-service --format "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" 2>/dev/null || true)
-                        ORD_IP=$(docker  inspect order-service   --format "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" 2>/dev/null || true)
-
-                        if [ -z "$AUTH_IP" ] || [ -z "$PROD_IP" ] || [ -z "$ORD_IP" ]; then
-                            echo "  Containers not yet running (attempt $i/60)"
-                            sleep 5
-                            continue
-                        fi
-
-                        AUTH=$(curl -s -o /dev/null -w "%{http_code}" http://${AUTH_IP}:8080/swagger/v1/swagger.json 2>/dev/null || echo 0)
-                        PROD=$(curl -s -o /dev/null -w "%{http_code}" http://${PROD_IP}:8080/swagger/v1/swagger.json 2>/dev/null || echo 0)
-                        ORD=$(curl  -s -o /dev/null -w "%{http_code}" http://${ORD_IP}:8080/swagger/v1/swagger.json  2>/dev/null || echo 0)
+                        AUTH=$(curl -s -o /dev/null -w "%{http_code}" http://auth-service:8080/swagger/v1/swagger.json    2>/dev/null || echo 0)
+                        PROD=$(curl -s -o /dev/null -w "%{http_code}" http://product-service:8080/swagger/v1/swagger.json 2>/dev/null || echo 0)
+                        ORD=$(curl  -s -o /dev/null -w "%{http_code}" http://order-service:8080/swagger/v1/swagger.json   2>/dev/null || echo 0)
                         echo "  auth=${AUTH} product=${PROD} order=${ORD} (attempt $i/60)"
-
                         if [ "$AUTH" = "200" ] && [ "$PROD" = "200" ] && [ "$ORD" = "200" ]; then
                             echo "All services ready."
                             exit 0
@@ -82,8 +74,7 @@ pipeline {
             agent {
                 docker {
                     image "${DOTNET_IMAGE}"
-                    // Join the compose network so service DNS names resolve inside the container.
-                    // Config is overridden via TEST_-prefixed env vars to point at service names:port 8080.
+                    // Join the same compose network so service names resolve
                     args  "--network ${COMPOSE_PROJECT_NAME}_default"
                     reuseNode true
                 }
@@ -124,6 +115,7 @@ pipeline {
             archiveArtifacts artifacts: "${TEST_RESULTS_DIR}/**/*,${ALLURE_RESULTS_DIR}/**/*",
                              allowEmptyArchive: true
 
+            sh 'docker network disconnect "${COMPOSE_PROJECT_NAME}_default" "$(hostname)" || true'
             sh 'docker compose down -v || true'
         }
 
