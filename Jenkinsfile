@@ -3,12 +3,16 @@ pipeline {
     agent { label 'built-in' }
 
     environment {
-        DOTNET_CLI_TELEMETRY_OPTOUT = '1'
-        DOTNET_NOLOGO                = '1'
-        COMPOSE_PROJECT_NAME         = "api-test-${BUILD_NUMBER}"
-        ALLURE_RESULTS_DIR           = 'allure-results'
-        TEST_RESULTS_DIR             = 'TestResults'
-        DOTNET_IMAGE                 = 'mcr.microsoft.com/dotnet/sdk:8.0'
+        DOTNET_CLI_TELEMETRY_OPTOUT      = '1'
+        DOTNET_NOLOGO                    = '1'
+        DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
+        // When the SDK container runs as uid 1000 (jenkins), /.dotnet is not writable.
+        // Point the CLI home to the writable workspace directory instead.
+        DOTNET_CLI_HOME                  = "${WORKSPACE}/.dotnet-home"
+        COMPOSE_PROJECT_NAME             = "api-test-${BUILD_NUMBER}"
+        ALLURE_RESULTS_DIR               = 'allure-results'
+        TEST_RESULTS_DIR                 = 'TestResults'
+        DOTNET_IMAGE                     = 'mcr.microsoft.com/dotnet/sdk:8.0'
     }
 
     options {
