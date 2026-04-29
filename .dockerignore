@@ -1,0 +1,9 @@
+**/.dockerignore
+**/.gitignore
+**/.git
+**/bin
+**/obj
+**/*.user
+**/*.suo
+**/*.vs
+**/TestResults
