@@ -43,30 +43,8 @@ pipeline {
 
         stage('Start Services') {
             steps {
-                sh 'docker compose up -d --build'
-                sh '''
-                    COMPOSE_NET="${COMPOSE_PROJECT_NAME}_default"
-                    echo "Connecting Jenkins to compose network ${COMPOSE_NET}..."
-                    # hostname = short container ID of the Jenkins container
-                    JENKINS_HOST=$(hostname)
-                    docker network connect "${COMPOSE_NET}" "${JENKINS_HOST}" || true
-
-                    echo "Waiting for services to become healthy..."
-                    for i in $(seq 1 60); do
-                        AUTH=$(curl -s -o /dev/null -w "%{http_code}" http://auth-service:8080/swagger/v1/swagger.json    2>/dev/null || echo 0)
-                        PROD=$(curl -s -o /dev/null -w "%{http_code}" http://product-service:8080/swagger/v1/swagger.json 2>/dev/null || echo 0)
-                        ORD=$(curl  -s -o /dev/null -w "%{http_code}" http://order-service:8080/swagger/v1/swagger.json   2>/dev/null || echo 0)
-                        echo "  auth=${AUTH} product=${PROD} order=${ORD} (attempt $i/60)"
-                        if [ "$AUTH" = "200" ] && [ "$PROD" = "200" ] && [ "$ORD" = "200" ]; then
-                            echo "All services ready."
-                            exit 0
-                        fi
-                        sleep 5
-                    done
-                    echo "Services did not become ready in time."
-                    docker compose logs
-                    exit 1
-                '''
+                // --wait blocks until all container healthchecks pass (or timeout)
+                sh 'docker compose up -d --build --wait'
             }
         }
 
@@ -115,7 +93,6 @@ pipeline {
             archiveArtifacts artifacts: "${TEST_RESULTS_DIR}/**/*,${ALLURE_RESULTS_DIR}/**/*",
                              allowEmptyArchive: true
 
-            sh 'docker network disconnect "${COMPOSE_PROJECT_NAME}_default" "$(hostname)" || true'
             sh 'docker compose down -v || true'
         }
 
