@@ -1,9 +1,3 @@
-// ==========================================================================
-// PLACEHOLDER DTOs — These will be replaced by NSwag-generated code.
-// Run generate-clients.bat to regenerate from swagger/auth-swagger.json.
-// Structure must match the nested AuthResponse returned by AuthService.
-// ==========================================================================
-
 namespace ApiTestFramework.Clients.AuthService;
 
 public class RegisterRequest

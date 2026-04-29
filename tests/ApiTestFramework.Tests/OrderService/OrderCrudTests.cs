@@ -55,17 +55,13 @@ public class OrderCrudTests : BaseTest
     public async Task CreateOrder_WithInvalidProduct_ReturnsBadRequest()
     {
         // Arrange
-        var request = OrderDataGenerator.GenerateCreateOrderRequest(productId: 99999);
+        var request = OrderDataGenerator.GenerateCreateOrderRequest(productId: NonExistentId);
 
         // Act
-        var response = await _orderSteps.GetOrderAsync(0); // This will just get a 404
-        // Better: use the raw client to post with invalid product
-        var apiClient = ApiTestFramework.Core.DI.ContainerProvider.ResolveNamed<ApiTestFramework.Core.Client.ApiClient>("OrderService");
-        var rawResponse = await apiClient.SendAsync(
-            ApiTestFramework.Core.Client.RequestFactory.Post("/api/orders", request));
+        var response = await _orderSteps.TryCreateOrderAsync(request);
 
         // Assert
-        rawResponse.ShouldHaveStatusCode(HttpStatusCode.BadRequest);
+        response.ShouldHaveStatusCode(HttpStatusCode.BadRequest);
     }
 
     [Test]
@@ -90,7 +86,7 @@ public class OrderCrudTests : BaseTest
     public async Task GetOrder_WithInvalidId_ReturnsNotFound()
     {
         // Act
-        var response = await _orderSteps.GetOrderAsync(99999);
+        var response = await _orderSteps.GetOrderAsync(NonExistentId);
 
         // Assert
         response.ShouldHaveStatusCode(HttpStatusCode.NotFound);

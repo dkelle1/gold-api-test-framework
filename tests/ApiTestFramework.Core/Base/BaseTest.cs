@@ -11,6 +11,9 @@ namespace ApiTestFramework.Core.Base;
 [AllureNUnit]
 public abstract class BaseTest
 {
+    /// <summary>An ID guaranteed to not exist in any service database.</summary>
+    protected const int NonExistentId = 999_999;
+
     protected ILogger Logger { get; private set; } = null!;
 
     [OneTimeSetUp]

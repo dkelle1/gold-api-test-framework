@@ -112,13 +112,36 @@ public class ProductServiceSteps
         return response;
     }
 
+    // ── Negative-path helpers (raw RestResponse for status-code assertions) ─────
+
     /// <summary>
-    /// Creates a product and returns only the Id — useful for setup steps.
+    /// Attempts to create a product and returns the raw response.
+    /// Use for negative test scenarios (validation errors, auth failures).
     /// </summary>
-    [AllureStep("Create product and return Id")]
-    public async Task<int> CreateProductAndReturnIdAsync()
-    {
-        var product = await CreateProductAsync();
-        return product.Id;
-    }
+    [AllureStep("Attempt to create a product (raw response)")]
+    public async Task<RestResponse<Product>> TryCreateProductAsync(CreateProductRequest createRequest)
+        => await _client.SendAsync<Product>(RequestFactory.Post(ProductServiceRoutes.Base, createRequest));
+
+    /// <summary>
+    /// Attempts to update a product and returns the raw response.
+    /// </summary>
+    [AllureStep("Attempt to update product with Id: {id} (raw response)")]
+    public async Task<RestResponse<Product>> TryUpdateProductAsync(int id, UpdateProductRequest updateRequest)
+        => await _client.SendAsync<Product>(
+            RequestBuilder.Create()
+                .WithMethod(Method.Put)
+                .WithPath(ProductServiceRoutes.ById)
+                .WithPathSegment("id", id)
+                .WithBody(updateRequest));
+
+    /// <summary>
+    /// Attempts to delete a product and returns the raw response.
+    /// </summary>
+    [AllureStep("Attempt to delete product with Id: {id} (raw response)")]
+    public async Task<RestResponse> TryDeleteProductAsync(int id)
+        => await _client.SendAsync(
+            RequestBuilder.Create()
+                .WithMethod(Method.Delete)
+                .WithPath(ProductServiceRoutes.ById)
+                .WithPathSegment("id", id));
 }

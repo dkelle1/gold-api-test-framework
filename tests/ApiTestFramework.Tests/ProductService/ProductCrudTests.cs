@@ -67,7 +67,7 @@ public class ProductCrudTests : BaseTest
     public async Task GetProduct_WithInvalidId_ReturnsNotFound()
     {
         // Act
-        var response = await _steps.GetProductAsync(99999);
+        var response = await _steps.GetProductAsync(NonExistentId);
 
         // Assert
         response.ShouldHaveStatusCode(HttpStatusCode.NotFound);
@@ -135,7 +135,7 @@ public class ProductCrudTests : BaseTest
     public async Task DeleteProduct_WithInvalidId_ReturnsNotFound()
     {
         // Act
-        var response = await _steps.DeleteProductAsync(99999);
+        var response = await _steps.DeleteProductAsync(NonExistentId);
 
         // Assert
         response.ShouldHaveStatusCode(HttpStatusCode.NotFound);
