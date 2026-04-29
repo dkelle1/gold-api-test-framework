@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent { label 'built-in' }
 
     environment {
         DOTNET_CLI_TELEMETRY_OPTOUT = '1'
@@ -24,28 +24,29 @@ pipeline {
 
         stage('Restore & Build') {
             steps {
-                sh 'dotnet restore ApiTestFramework.sln'
-                sh 'dotnet build ApiTestFramework.sln -c Release --no-restore'
+                bat 'dotnet restore ApiTestFramework.sln'
+                bat 'dotnet build ApiTestFramework.sln -c Release --no-restore'
             }
         }
 
         stage('Start Services') {
             steps {
-                sh '''
-                    docker compose up -d --build
-                    echo "Waiting for services to become healthy..."
-                    for i in $(seq 1 60); do
-                        AUTH=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5300/swagger/v1/swagger.json)
-                        PROD=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5100/swagger/v1/swagger.json)
-                        ORD=$(curl -s -o /dev/null -w "%{http_code}"  http://localhost:5200/swagger/v1/swagger.json)
-                        if [ "$AUTH" = "200" ] && [ "$PROD" = "200" ] && [ "$ORD" = "200" ]; then
-                            echo "All services ready."
+                bat 'docker compose up -d --build'
+                powershell '''
+                    Write-Host "Waiting for services to become healthy..."
+                    $timeout = 60
+                    for ($i = 1; $i -le $timeout; $i++) {
+                        $auth = try { (Invoke-WebRequest http://localhost:5300/swagger/v1/swagger.json -UseBasicParsing -TimeoutSec 2).StatusCode } catch { 0 }
+                        $prod = try { (Invoke-WebRequest http://localhost:5100/swagger/v1/swagger.json -UseBasicParsing -TimeoutSec 2).StatusCode } catch { 0 }
+                        $ord  = try { (Invoke-WebRequest http://localhost:5200/swagger/v1/swagger.json -UseBasicParsing -TimeoutSec 2).StatusCode } catch { 0 }
+                        Write-Host "  auth=$auth product=$prod order=$ord (attempt $i/$timeout)"
+                        if ($auth -eq 200 -and $prod -eq 200 -and $ord -eq 200) {
+                            Write-Host "All services ready."
                             exit 0
-                        fi
-                        echo "  auth=$AUTH product=$PROD order=$ORD — attempt $i/60"
-                        sleep 3
-                    done
-                    echo "Services did not become ready in time."
+                        }
+                        Start-Sleep -Seconds 5
+                    }
+                    Write-Host "Services did not become ready in time."
                     docker compose logs
                     exit 1
                 '''
@@ -54,13 +55,13 @@ pipeline {
 
         stage('Run Tests') {
             steps {
-                sh """
-                    mkdir -p ${TEST_RESULTS_DIR}
-                    dotnet test tests/ApiTestFramework.Tests/ApiTestFramework.Tests.csproj \\
-                        -c Release --no-build \\
-                        --logger "trx;LogFileName=results.trx" \\
-                        --results-directory ${TEST_RESULTS_DIR} \\
-                        -- NUnit.WorkDirectory=${WORKSPACE}
+                powershell """
+                    if (-not (Test-Path ${TEST_RESULTS_DIR})) { New-Item -ItemType Directory ${TEST_RESULTS_DIR} | Out-Null }
+                    dotnet test tests/ApiTestFramework.Tests/ApiTestFramework.Tests.csproj `
+                        -c Release --no-build `
+                        --logger "trx;LogFileName=results.trx" `
+                        --results-directory ${TEST_RESULTS_DIR} `
+                        -- NUnit.WorkDirectory="${env:WORKSPACE}"
                 """
             }
         }
@@ -68,7 +69,6 @@ pipeline {
 
     post {
         always {
-            // Publish Allure report (Allure.NUnit writes to allure-results/ in workspace root)
             allure([
                 includeProperties: false,
                 jdk              : '',
@@ -77,19 +77,16 @@ pipeline {
                 results          : [[path: "${ALLURE_RESULTS_DIR}"]]
             ])
 
-            // Publish TRX as JUnit XML for the test trend graph
             junit(
-                testResults            : "${TEST_RESULTS_DIR}/*.trx",
-                allowEmptyResults      : true,
-                skipPublishingChecks   : true
+                testResults          : "${TEST_RESULTS_DIR}/*.trx",
+                allowEmptyResults    : true,
+                skipPublishingChecks : true
             )
 
-            // Archive raw artifacts
             archiveArtifacts artifacts: "${TEST_RESULTS_DIR}/**/*,${ALLURE_RESULTS_DIR}/**/*",
                              allowEmptyArchive: true
 
-            // Tear down containers regardless of outcome
-            sh 'docker compose down -v || true'
+            bat 'docker compose down -v || exit 0'
         }
 
         success {
@@ -97,7 +94,7 @@ pipeline {
         }
 
         failure {
-            sh 'docker compose logs --tail=100 || true'
+            bat 'docker compose logs --tail=100 || exit 0'
             echo 'Tests failed — check the Allure report for details.'
         }
     }
