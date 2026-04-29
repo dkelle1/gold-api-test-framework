@@ -13,4 +13,4 @@ RUN dotnet publish "AuthService.csproj" -c Release -o /app/publish --no-restore
 FROM base AS final
 WORKDIR /app
 COPY --from=build /app/publish .
-ENTRYPOINT ["dotnet", "AuthService.dll"]
+ENTRYPOINT ["dotnet", "AuthService.dll", "--urls", "http://+:8080"]

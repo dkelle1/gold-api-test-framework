@@ -13,4 +13,4 @@ RUN dotnet publish "OrderService.csproj" -c Release -o /app/publish --no-restore
 FROM base AS final
 WORKDIR /app
 COPY --from=build /app/publish .
-ENTRYPOINT ["dotnet", "OrderService.dll"]
+ENTRYPOINT ["dotnet", "OrderService.dll", "--urls", "http://+:8080"]

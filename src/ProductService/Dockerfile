@@ -13,4 +13,4 @@ RUN dotnet publish "ProductService.csproj" -c Release -o /app/publish --no-resto
 FROM base AS final
 WORKDIR /app
 COPY --from=build /app/publish .
-ENTRYPOINT ["dotnet", "ProductService.dll"]
+ENTRYPOINT ["dotnet", "ProductService.dll", "--urls", "http://+:8080"]
