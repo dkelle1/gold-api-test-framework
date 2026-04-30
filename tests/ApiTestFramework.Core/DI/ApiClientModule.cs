@@ -23,8 +23,9 @@ public class ApiClientModule : Module
             // Capture loop variables for the closure
             var serviceName = name;
             var baseUrl = serviceConfig.BaseUrl;
+            var retryCount = _config.RetryCount;
 
-            builder.Register(_ => new ApiClient(baseUrl, serviceName))
+            builder.Register(_ => new ApiClient(baseUrl, serviceName) { RetryCount = retryCount })
                 .Named<ApiClient>(serviceName)
                 .SingleInstance();
         }
