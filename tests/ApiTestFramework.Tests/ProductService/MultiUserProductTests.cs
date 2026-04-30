@@ -31,9 +31,8 @@ public class MultiUserProductTests : BaseTest
     private AuthServiceSteps _authSteps = null!;
     private ProductServiceSteps _productSteps = null!;
 
-    public override void OneTimeSetUp()
+    protected override void OnFixtureSetUp()
     {
-        base.OneTimeSetUp();
         _authSteps = new AuthServiceSteps();
         _productSteps = new ProductServiceSteps();
     }

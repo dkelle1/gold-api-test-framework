@@ -18,9 +18,8 @@ public class ProductCrudTests : BaseTest
 {
     private ProductServiceSteps _steps = null!;
 
-    public override void OneTimeSetUp()
+    protected override void OnFixtureSetUp()
     {
-        base.OneTimeSetUp();
         _steps = new ProductServiceSteps();
     }
 
