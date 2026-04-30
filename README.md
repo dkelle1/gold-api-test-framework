@@ -27,7 +27,9 @@ Complete solution with three .NET 8 microservices and a generic API test framewo
 | Test Data | Bogus |
 | Assertions | FluentAssertions |
 | Reporting | Allure (with full request/response logging) |
+| Configuration | HashiCorp Consul KV (optional, overrides JSON) |
 | CI/CD | Jenkins (Jenkinsfile) |
+| Infrastructure | Docker Compose (SQL Server, Redis, Consul) |
 
 ## Authentication Flow
 
@@ -52,6 +54,20 @@ All ProductService and OrderService endpoints require a valid JWT Bearer token. 
 ```
 
 ## Quick Start
+
+### Option A — Docker Compose (recommended)
+
+Starts all microservices, SQL Server, Redis, and Consul in one command.  
+The `consul-init` sidecar seeds service base-URLs into Consul KV so the test framework picks them up automatically.
+
+```bash
+docker compose up -d --build --wait
+dotnet build tests/ApiTestFramework.Tests
+export TEST_Consul__Address=http://localhost:8500   # (PowerShell: $env:TEST_Consul__Address=...)
+dotnet test tests/ApiTestFramework.Tests
+```
+
+### Option B — Manual (no Docker)
 
 ### 1. Start the microservices
 ```bash
@@ -96,12 +112,49 @@ allure serve TestResults/allure-results
 │   ├── ProductService/          # Product microservice (port 5100, JWT protected)
 │   └── OrderService/            # Order microservice (port 5200, JWT protected, depends on ProductService)
 ├── tests/
-│   ├── ApiTestFramework.Core/   # Core framework: RequestBuilder, ApiClient, DI, Assertions, TokenProvider
+│   ├── ApiTestFramework.Core/   # Core framework: RequestBuilder, ApiClient, DI, Assertions, TokenProvider, ConfigurationProvider
 │   ├── ApiTestFramework.Clients/# NSwag configs + placeholder DTOs (Auth, Product, Order)
 │   ├── ApiTestFramework.Steps/  # Step classes + Bogus data generators
 │   └── ApiTestFramework.Tests/  # NUnit test fixtures (Auth, Product, Order — 22 tests)
+├── docker-compose.yml           # Full stack: microservices + SQL Server + Redis + Consul
 ├── Jenkinsfile                  # CI/CD pipeline
 └── ApiTestFramework.sln
+```
+
+## Configuration
+
+Test configuration is resolved in priority order (highest wins):
+
+1. **Consul KV** — `api-test-framework` key (when `TEST_Consul__Address` is set or `Consul.Address` in JSON is non-empty)
+2. **Environment variables** — prefix `TEST_`, double-underscore notation (e.g. `TEST_Services__AuthService__BaseUrl`)
+3. **`appsettings.test.json`** — local fallback, always present
+
+### Consul KV
+
+When Consul is available the framework reads a single JSON document from key `api-test-framework`.  
+To disable Consul entirely, set `"Consul": { "Address": "" }` in `appsettings.test.json` — the framework falls back to JSON-only automatically.
+
+**To add a new service:**
+1. Add an entry under `"Services"` in `appsettings.test.json` (fallback)
+2. Update the JSON payload in the `consul-init` entrypoint in `docker-compose.yml`
+
+No C# code changes required.
+
+### `appsettings.test.json` structure
+```json
+{
+  "Consul": {
+    "Address": "http://localhost:8500",
+    "KeyPrefix": "api-test-framework"
+  },
+  "Services": {
+    "AuthService":    { "BaseUrl": "http://localhost:5300" },
+    "ProductService": { "BaseUrl": "http://localhost:5100" },
+    "OrderService":   { "BaseUrl": "http://localhost:5200" }
+  },
+  "DefaultTimeoutSeconds": 30,
+  "RetryCount": 0
+}
 ```
 
 ## Key Framework Features
@@ -185,3 +238,16 @@ response.ShouldMatchDtoExcluding(expectedProduct,
 | AuthService | 7 | Register, login, duplicate user, wrong password, unauthorized access |
 | ProductService | 7 | Create, get, get all, update, delete (valid & invalid scenarios) |
 | OrderService | 8 | Create (valid & invalid product), get, get all, update, delete, full lifecycle |
+
+## CI/CD
+
+The `Jenkinsfile` defines a declarative pipeline that:
+
+1. **Checkout** — clones the repository
+2. **Build** — `dotnet build` with `Release` configuration
+3. **Start Services** — `docker compose up -d --build --wait` (brings up SQL Server, Redis, Consul + all microservices; waits for all healthchecks)
+4. **Run Tests** — `dotnet test` with TRX logger; injects `TEST_Consul__Address=http://consul:8500` so the framework reads service URLs from Consul KV
+5. **Publish Results** — publishes the TRX report as a Jenkins test result
+6. **Teardown** — `docker compose down -v` always runs (post step)
+
+Each CI run uses an isolated Docker Compose project name (`api-test-${BUILD_NUMBER}`) to allow parallel builds without port conflicts.
