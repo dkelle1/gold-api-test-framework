@@ -15,7 +15,7 @@ namespace ApiTestFramework.Steps.ServiceSteps;
 /// Adds service-specific convenience methods and cross-service setup helpers.
 /// </summary>
 public class OrderServiceSteps
-    : CrudServiceStepsBase<Order, CreateOrderRequest, UpdateOrderRequest>
+    : CrudServiceSteps<Order, CreateOrderRequest, UpdateOrderRequest>
 {
     private readonly ProductServiceSteps _productSteps;
 

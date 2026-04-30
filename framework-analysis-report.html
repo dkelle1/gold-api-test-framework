@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>API Test Framework — Raport Analizy Kodu</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #1a1d27;
+    --bg3: #22263a;
+    --border: #2e3352;
+    --accent: #6c8efb;
+    --accent2: #a78bfa;
+    --green: #34d399;
+    --red: #f87171;
+    --yellow: #fbbf24;
+    --orange: #fb923c;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --tag-green: #064e3b;
+    --tag-red: #7f1d1d;
+    --tag-yellow: #78350f;
+    --tag-blue: #1e3a5f;
+    --tag-purple: #3b1f6b;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ── Header ── */
+  .header {
+    background: linear-gradient(135deg, #1a1d27 0%, #0f1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 40px 60px 32px;
+  }
+  .header h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .header .subtitle { color: var(--text2); font-size: 14px; }
+  .header .meta { display: flex; gap: 24px; margin-top: 20px; flex-wrap: wrap; }
+  .meta-item { display: flex; flex-direction: column; }
+  .meta-item .label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .6px; }
+  .meta-item .value { font-size: 14px; color: var(--text); font-weight: 500; margin-top: 2px; }
+
+  /* ── Layout ── */
+  .container { max-width: 1300px; margin: 0 auto; padding: 40px 60px; }
+
+  /* ── Score bar ── */
+  .score-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  .score-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+  }
+  .score-card .score-num {
+    font-size: 42px;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .score-card .score-label { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; }
+  .score-card .score-bar { width: 100%; height: 4px; background: var(--bg3); border-radius: 2px; margin-top: 12px; }
+  .score-card .score-fill { height: 4px; border-radius: 2px; transition: width .3s; }
+  .c-green { color: var(--green); } .f-green { background: var(--green); }
+  .c-yellow { color: var(--yellow); } .f-yellow { background: var(--yellow); }
+  .c-orange { color: var(--orange); } .f-orange { background: var(--orange); }
+  .c-red { color: var(--red); } .f-red { background: var(--red); }
+
+  /* ── Sections ── */
+  .section { margin-bottom: 48px; }
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title .icon { font-size: 20px; }
+
+  /* ── Finding cards ── */
+  .findings { display: flex; flex-direction: column; gap: 12px; }
+  .finding {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 4px solid;
+    border-radius: var(--radius);
+    padding: 16px 20px;
+  }
+  .finding.sev-critical { border-left-color: var(--red); }
+  .finding.sev-major    { border-left-color: var(--orange); }
+  .finding.sev-minor    { border-left-color: var(--yellow); }
+  .finding.sev-good     { border-left-color: var(--green); }
+  .finding-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  .finding-title { font-weight: 600; color: #fff; font-size: 14px; }
+  .badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .badge-critical { background: var(--tag-red); color: var(--red); }
+  .badge-major    { background: #431a06; color: var(--orange); }
+  .badge-minor    { background: var(--tag-yellow); color: var(--yellow); }
+  .badge-good     { background: var(--tag-green); color: var(--green); }
+  .badge-info     { background: var(--tag-blue); color: #93c5fd; }
+  .finding-body { color: var(--text2); font-size: 13px; line-height: 1.65; }
+  .finding-body p { margin-bottom: 8px; }
+  .finding-body p:last-child { margin-bottom: 0; }
+  .finding-location { font-size: 11px; color: var(--text3); margin-top: 8px; font-family: 'Consolas', monospace; }
+
+  /* ── Code block ── */
+  pre, code {
+    font-family: 'Consolas', 'Cascadia Code', monospace;
+    font-size: 12px;
+  }
+  pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    overflow-x: auto;
+    margin: 10px 0;
+    line-height: 1.5;
+    color: #c9d1d9;
+  }
+  code {
+    background: var(--bg3);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #93c5fd;
+    font-size: 12px;
+  }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    background: var(--bg3);
+    text-align: left;
+    padding: 10px 14px;
+    color: var(--text2);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg3); }
+  .table-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+
+  /* ── Steps diagram ── */
+  .steps-list { display: flex; flex-direction: column; gap: 0; }
+  .step-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .step-row:last-child { border-bottom: none; }
+  .step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 12px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .step-num.required { background: #1e3a5f; color: #93c5fd; }
+  .step-num.optional { background: #1a2e1a; color: var(--green); }
+  .step-content { flex: 1; }
+  .step-content strong { color: #fff; display: block; margin-bottom: 2px; }
+  .step-content span { color: var(--text2); font-size: 12px; }
+  .step-file { font-family: monospace; font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+  /* ── Architecture diagram ── */
+  .arch-diagram {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .arch-layer {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+    align-items: center;
+  }
+  .arch-layer:last-child { margin-bottom: 0; }
+  .arch-arrow { color: var(--text3); font-size: 18px; text-align: center; margin: 4px 0; padding-left: 60px; }
+  .arch-label { font-size: 11px; color: var(--text3); width: 48px; text-align: right; flex-shrink: 0; text-transform: uppercase; letter-spacing: .4px; }
+  .arch-boxes { display: flex; gap: 8px; flex-wrap: wrap; }
+  .arch-box {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid;
+  }
+  .arch-box.blue   { background: #1e3a5f; border-color: #2d5a9e; color: #93c5fd; }
+  .arch-box.purple { background: var(--tag-purple); border-color: #5b2fa8; color: #c4b5fd; }
+  .arch-box.green  { background: #064e3b; border-color: #065f46; color: #6ee7b7; }
+  .arch-box.orange { background: #431a06; border-color: #7c2d12; color: #fdba74; }
+
+  /* ── Recommendation list ── */
+  .rec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .rec-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+  }
+  .rec-card .rec-priority { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 8px; }
+  .rec-card h4 { color: #fff; font-size: 14px; margin-bottom: 8px; }
+  .rec-card p { color: var(--text2); font-size: 13px; line-height: 1.6; }
+  .pri-1 { color: var(--red); }
+  .pri-2 { color: var(--orange); }
+  .pri-3 { color: var(--yellow); }
+  .pri-4 { color: var(--accent); }
+
+  /* ── TOC ── */
+  .toc {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 40px;
+  }
+  .toc h3 { font-size: 13px; color: var(--text2); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 12px; }
+  .toc ol { padding-left: 18px; }
+  .toc li { margin-bottom: 4px; font-size: 13px; }
+
+  /* ── Misc ── */
+  .tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-right: 4px;
+    margin-bottom: 4px;
+  }
+  .tag-green { background: var(--tag-green); color: var(--green); }
+  .tag-red { background: var(--tag-red); color: var(--red); }
+  .tag-yellow { background: var(--tag-yellow); color: var(--yellow); }
+  .tag-blue { background: var(--tag-blue); color: #93c5fd; }
+  .tag-purple { background: var(--tag-purple); color: #c4b5fd; }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media(max-width: 900px) { .two-col { grid-template-columns: 1fr; } .container { padding: 24px; } .header { padding: 24px; } }
+
+  .highlight { color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<div class="header">
+  <h1>API Test Framework — Raport Analizy Kodu</h1>
+  <div class="subtitle">Kompleksowa analiza architektury, jakości kodu, zasad KISS i najlepszych praktyk</div>
+  <div class="meta">
+    <div class="meta-item"><span class="label">Data analizy</span><span class="value">29 kwiecień 2026</span></div>
+    <div class="meta-item"><span class="label">Wersja frameworka</span><span class="value">Build #14 (commit e53ee4c)</span></div>
+    <div class="meta-item"><span class="label">Platforma</span><span class="value">.NET 8 / NUnit 4 / RestSharp 112</span></div>
+    <div class="meta-item"><span class="label">Testy</span><span class="value">22 / 22 przechodzą ✓</span></div>
+    <div class="meta-item"><span class="label">Projekty</span><span class="value">5 (Core, Clients, Steps, Tests, OpenApi)</span></div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ══ TOC ══ -->
+  <div class="toc">
+    <h3>Spis treści</h3>
+    <ol>
+      <li><a href="#scores">Podsumowanie ocen</a></li>
+      <li><a href="#architecture">Architektura i warstwy</a></li>
+      <li><a href="#new-service">Dodawanie nowego serwisu — przewodnik krok po kroku</a></li>
+      <li><a href="#quality">Jakość kodu — szczegółowe ustalenia</a></li>
+      <li><a href="#kiss">Analiza zasady KISS</a></li>
+      <li><a href="#practices">Najlepsze praktyki programowania</a></li>
+      <li><a href="#deps">Zależności i wersje bibliotek</a></li>
+      <li><a href="#recommendations">Rekomendacje priorytetowe</a></li>
+    </ol>
+  </div>
+
+  <!-- ══ SCORES ══ -->
+  <div id="scores" class="section">
+    <div class="section-title"><span class="icon">📊</span>Podsumowanie ocen</div>
+    <div class="score-grid">
+
+      <div class="score-card">
+        <div class="score-num c-green">7.8</div>
+        <div class="score-label">Ogólna ocena</div>
+        <div class="score-bar"><div class="score-fill f-green" style="width:78%"></div></div>
+      </div>
+
+      <div class="score-card">
+        <div class="score-num c-green">8.5</div>
+        <div class="score-label">Architektura</div>
+        <div class="score-bar"><div class="score-fill f-green" style="width:85%"></div></div>
+      </div>
+
+      <div class="score-card">
+        <div class="score-num c-yellow">6.5</div>
+        <div class="score-label">Jakość kodu</div>
+        <div class="score-bar"><div class="score-fill f-yellow" style="width:65%"></div></div>
+      </div>
+
+      <div class="score-card">
+        <div class="score-num c-yellow">7.0</div>
+        <div class="score-label">KISS</div>
+        <div class="score-bar"><div class="score-fill f-yellow" style="width:70%"></div></div>
+      </div>
+
+      <div class="score-card">
+        <div class="score-num c-orange">6.0</div>
+        <div class="score-label">Testowalność</div>
+        <div class="score-bar"><div class="score-fill f-orange" style="width:60%"></div></div>
+      </div>
+
+      <div class="score-card">
+        <div class="score-num c-green">9.0</div>
+        <div class="score-label">Raportowanie</div>
+        <div class="score-bar"><div class="score-fill f-green" style="width:90%"></div></div>
+      </div>
+
+      <div class="score-card">
+        <div class="score-num c-orange">6.5</div>
+        <div class="score-label">Izolacja testów</div>
+        <div class="score-bar"><div class="score-fill f-orange" style="width:65%"></div></div>
+      </div>
+
+      <div class="score-card">
+        <div class="score-num c-green">8.0</div>
+        <div class="score-label">Rozszerzalność</div>
+        <div class="score-bar"><div class="score-fill f-green" style="width:80%"></div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ ARCHITECTURE ══ -->
+  <div id="architecture" class="section">
+    <div class="section-title"><span class="icon">🏗️</span>Architektura i warstwy</div>
+
+    <div class="arch-diagram">
+      <div class="arch-layer">
+        <div class="arch-label">Tests</div>
+        <div class="arch-boxes">
+          <div class="arch-box blue">AuthCrudTests</div>
+          <div class="arch-box blue">ProductCrudTests</div>
+          <div class="arch-box blue">OrderCrudTests</div>
+          <div class="arch-box blue">BaseTest</div>
+        </div>
+      </div>
+      <div class="arch-arrow">↓ korzysta z</div>
+      <div class="arch-layer">
+        <div class="arch-label">Steps</div>
+        <div class="arch-boxes">
+          <div class="arch-box purple">AuthServiceSteps</div>
+          <div class="arch-box purple">ProductServiceSteps</div>
+          <div class="arch-box purple">OrderServiceSteps</div>
+          <div class="arch-box purple">DataGenerators</div>
+        </div>
+      </div>
+      <div class="arch-arrow">↓ korzysta z</div>
+      <div class="arch-layer">
+        <div class="arch-label">Core</div>
+        <div class="arch-boxes">
+          <div class="arch-box green">ApiClient</div>
+          <div class="arch-box green">RequestBuilder</div>
+          <div class="arch-box green">ResponseAssertions</div>
+          <div class="arch-box green">TokenProvider</div>
+          <div class="arch-box green">ContainerProvider</div>
+          <div class="arch-box green">AllureRequestLogger</div>
+        </div>
+      </div>
+      <div class="arch-arrow">↓ korzysta z</div>
+      <div class="arch-layer">
+        <div class="arch-label">Clients</div>
+        <div class="arch-boxes">
+          <div class="arch-box orange">AuthDtos</div>
+          <div class="arch-box orange">ProductDtos</div>
+          <div class="arch-box orange">OrderDtos</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="findings">
+      <div class="finding sev-good">
+        <div class="finding-header">
+          <div class="finding-title">✅ Czyste 4-warstwowe rozdzielenie odpowiedzialności</div>
+          <span class="badge badge-good">ZALETA</span>
+        </div>
+        <div class="finding-body">
+          <p>Framework stosuje klasyczny wzorzec warstwowy: <strong>Clients</strong> (DTOs/kontrakty), <strong>Core</strong> (infrastruktura HTTP, DI, asercje), <strong>Steps</strong> (biznesowe kroki testów), <strong>Tests</strong> (scenariusze). Każda warstwa ma jedno zadanie. Warstwy zależą tylko od niższych — nie ma odwróconych zależności.</p>
+        </div>
+      </div>
+
+      <div class="finding sev-good">
+        <div class="finding-header">
+          <div class="finding-title">✅ Allure + FluentAssertions + Bogus — dobry dobór bibliotek</div>
+          <span class="badge badge-good">ZALETA</span>
+        </div>
+        <div class="finding-body">
+          <p><code>Allure.NUnit</code> zapewnia bogate raporty ze zrzutami request/response. <code>FluentAssertions</code> daje czytelne asercje. <code>Bogus</code> generuje realistyczne dane testowe bez powtórzeń. Autofac jako DI jest przesadą dla projektu tej wielkości, ale nie jest błędem.</p>
+        </div>
+      </div>
+
+      <div class="finding sev-good">
+        <div class="finding-header">
+          <div class="finding-title">✅ RequestBuilder — elegancki fluent API</div>
+          <span class="badge badge-good">ZALETA</span>
+        </div>
+        <div class="finding-body">
+          <p>Płynny budowniczy z metodami <code>WithMethod()</code>, <code>WithPath()</code>, <code>WithPathSegment()</code>, <code>WithBody()</code> itd. jest czytelny i rozszerzalny. <code>RequestFactory</code> jako skróty do typowych wywołań to dobra obserwacja DRY.</p>
+        </div>
+      </div>
+
+      <div class="finding sev-minor">
+        <div class="finding-header">
+          <div class="finding-title">⚠️ OpenApi projekt — infrastruktura bez integracji</div>
+          <span class="badge badge-minor">DROBNA</span>
+        </div>
+        <div class="finding-body">
+          <p><code>ApiTestFramework.OpenApi</code> zawiera <code>OpenApiSpecLoader</code> i <code>TestCaseScaffolder</code>, ale nigdzie nie są one wywoływane — ani z Jenkinsa, ani z samego pipeline'u testowego. Projekt nie jest częścią <code>ApiTestFramework.sln</code> (brak w pliku <code>.sln</code>). Obecność "martwego" projektu może mylić nowych deweloperów.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ NEW SERVICE ══ -->
+  <div id="new-service" class="section">
+    <div class="section-title"><span class="icon">➕</span>Dodawanie nowego serwisu — analiza procesu</div>
+
+    <p style="color:var(--text2); margin-bottom: 20px;">Aby dodać nowy serwis (np. <code>NotificationService</code> na porcie 5400), należy wykonać dokładnie <span class="highlight">10 kroków</span> w 8 plikach frameworka (nie licząc kodu samego serwisu):</p>
+
+    <div class="arch-diagram">
+      <div class="steps-list">
+
+        <div class="step-row">
+          <div class="step-num required">1</div>
+          <div class="step-content">
+            <strong>Dodaj URL do konfiguracji testów</strong>
+            <span>Dodaj nową sekcję JSON z BaseUrl serwisu</span>
+            <div class="step-file">tests/ApiTestFramework.Tests/appsettings.test.json</div>
+          </div>
+          <span class="badge badge-critical">WYMAGANY</span>
+        </div>
+
+        <div class="step-row">
+          <div class="step-num required">2</div>
+          <div class="step-content">
+            <strong>Dodaj właściwość ServiceConfig do TestConfiguration</strong>
+            <span>Nowa właściwość <code>public ServiceConfig NotificationService { get; set; } = new();</code></span>
+            <div class="step-file">tests/ApiTestFramework.Core/Configuration/TestConfiguration.cs</div>
+          </div>
+          <span class="badge badge-critical">WYMAGANY</span>
+        </div>
+
+        <div class="step-row">
+          <div class="step-num required">3</div>
+          <div class="step-content">
+            <strong>Zarejestruj ApiClient w Autofac</strong>
+            <span>Trzy linie w <code>ApiClientModule.Load()</code> rejestrujące nowy named client</span>
+            <div class="step-file">tests/ApiTestFramework.Core/DI/ApiClientModule.cs</div>
+          </div>
+          <span class="badge badge-critical">WYMAGANY</span>
+        </div>
+
+        <div class="step-row">
+          <div class="step-num required">4</div>
+          <div class="step-content">
+            <strong>Dodaj stałe tras do Routes.cs</strong>
+            <span>Nowa klasa <code>static NotificationServiceRoutes</code> z ścieżkami endpointów</span>
+            <div class="step-file">tests/ApiTestFramework.Core/Constants/Routes.cs</div>
+          </div>
+          <span class="badge badge-critical">WYMAGANY</span>
+        </div>
+
+        <div class="step-row">
+          <div class="step-num required">5</div>
+          <div class="step-content">
+            <strong>Utwórz DTOs dla nowego serwisu</strong>
+            <span>Modele request/response w nowym namespace np. <code>ApiTestFramework.Clients.NotificationService</code></span>
+            <div class="step-file">tests/ApiTestFramework.Clients/Dtos/NotificationDtos.cs (NOWY PLIK)</div>
+          </div>
+          <span class="badge badge-critical">WYMAGANY</span>
+        </div>
+
+        <div class="step-row">
+          <div class="step-num required">6</div>
+          <div class="step-content">
+            <strong>Dodaj serwis do docker-compose.yml</strong>
+            <span>Kontener, healthcheck, zmienne środowiskowe, depends_on</span>
+            <div class="step-file">docker-compose.yml</div>
+          </div>
+          <span class="badge badge-critical">WYMAGANY</span>
+        </div>
+
+        <div class="step-row">
+          <div class="step-num required">7</div>
+          <div class="step-content">
+            <strong>Utwórz DataGenerator dla nowego serwisu</strong>
+            <span>Klasa Bogus generująca losowe dane dla requestów</span>
+            <div class="step-file">tests/ApiTestFramework.Steps/DataGenerators/NotificationDataGenerator.cs (NOWY)</div>
+          </div>
+          <span class="badge badge-critical">WYMAGANY</span>
+        </div>
+
+        <div class="step-row">
+          <div class="step-num required">8</div>
+          <div class="step-content">
+            <strong>Utwórz klasę Steps dla nowego serwisu</strong>
+            <span>Wzoruj się na <code>ProductServiceSteps</code> — metody CRUD + "Try*" dla scenariuszy negatywnych</span>
+            <div class="step-file">tests/ApiTestFramework.Steps/ServiceSteps/NotificationServiceSteps.cs (NOWY)</div>
+          </div>
+          <span class="badge badge-critical">WYMAGANY</span>
+        </div>
+
+        <div class="step-row">
+          <div class="step-num required">9</div>
+          <div class="step-content">
+            <strong>Utwórz klasę testową</strong>
+            <span>Dziedzicz z <code>BaseTest</code>, dodaj atrybuty <code>[AllureSuite]</code>, <code>[AllureFeature]</code></span>
+            <div class="step-file">tests/ApiTestFramework.Tests/NotificationService/NotificationCrudTests.cs (NOWY)</div>
+          </div>
+          <span class="badge badge-critical">WYMAGANY</span>
+        </div>
+
+        <div class="step-row">
+          <div class="step-num optional">10</div>
+          <div class="step-content">
+            <strong>Dodaj env var w Jenkinsfile dla nowego serwisu</strong>
+            <span><code>export TEST_NotificationService__BaseUrl=http://notification-service:8080</code></span>
+            <div class="step-file">Jenkinsfile — stage "Run Tests"</div>
+          </div>
+          <span class="badge badge-info">OPCJONALNY</span>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="findings" style="margin-top:16px">
+      <div class="finding sev-major">
+        <div class="finding-header">
+          <div class="finding-title">⚠️ TestConfiguration ma hardcodowane nazwy serwisów</div>
+          <span class="badge badge-major">PROBLEM</span>
+        </div>
+        <div class="finding-body">
+          <p>Klasa <code>TestConfiguration</code> ma trzy jawne właściwości: <code>ProductService</code>, <code>OrderService</code>, <code>AuthService</code>. Każdy nowy serwis wymaga zmiany tej klasy ORAZ <code>ApiClientModule</code>. Lepszym rozwiązaniem byłoby słownikowe podejście:</p>
+<pre>public Dictionary&lt;string, ServiceConfig&gt; Services { get; set; } = new();</pre>
+          <p>Wtedy <code>ApiClientModule</code> mógłby iterować po słowniku i rejestrować klientów automatycznie — żadna zmiana kodu nie byłaby potrzebna dla nowych serwisów.</p>
+        </div>
+        <div class="finding-location">TestConfiguration.cs | ApiClientModule.cs</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ CODE QUALITY ══ -->
+  <div id="quality" class="section">
+    <div class="section-title"><span class="icon">🔍</span>Jakość kodu — szczegółowe ustalenia</div>
+
+    <div class="findings">
+
+      <div class="finding sev-critical">
+        <div class="finding-header">
+          <div class="finding-title">🔴 GlobalSetup używa hardkodowanej nazwy użytkownika — kruchy design</div>
+          <span class="badge badge-critical">KRYTYCZNY</span>
+        </div>
+        <div class="finding-body">
+          <p>W <code>GlobalSetup.cs</code> rejestrowany jest stały użytkownik <code>"test_user_global"</code>. Jeśli baza danych nie zostanie wyczyszczona (np. podczas debugowania lokalnego bez <code>docker compose down -v</code>), drugi run zwróci <code>409 Conflict</code> i cały suite padnie przed uruchomieniem jakiegokolwiek testu.</p>
+          <p>Poprawka: zamiast rejestracji użyć logowania jeśli rejestracja zwróci 409, albo generować losową nazwę użytkownika (<code>AuthDataGenerator.GenerateRegisterRequest()</code> już to robi).</p>
+<pre>// PROBLEM:
+var registerRequest = new RegisterRequest {
+    Username = "test_user_global",   // ← hardkodowane!
+    Email    = "test_global@test.com",
+    ...
+};
+// POPRAWKA:
+var registerRequest = AuthDataGenerator.GenerateRegisterRequest();</pre>
+        </div>
+        <div class="finding-location">tests/ApiTestFramework.Tests/GlobalSetup.cs : linia ~35</div>
+      </div>
+
+      <div class="finding sev-critical">
+        <div class="finding-header">
+          <div class="finding-title">🔴 ConfigurationProvider — potencjalny race condition przy inicjalizacji</div>
+          <span class="badge badge-critical">KRYTYCZNY</span>
+        </div>
+        <div class="finding-body">
+          <p>Właściwość <code>Configuration</code> sprawdza <code>_configuration == null</code> bez blokady (<code>lock</code>). W środowisku równoległym (a NUnit 4 domyślnie może uruchamiać fixtures równolegle) dwa wątki mogą jednocześnie wejść do bloku inicjalizacji i zbudować dwa oddzielne obiekty konfiguracji.</p>
+<pre>// PROBLEM:
+if (_configuration == null) {    // ← brak lock!
+    _configuration = new ConfigurationBuilder()...Build();
+}
+
+// POPRAWKA — Lazy&lt;T&gt;:
+private static readonly Lazy&lt;IConfiguration&gt; _lazyConfig = new(() =&gt;
+    new ConfigurationBuilder()...Build());
+public static IConfiguration Configuration =&gt; _lazyConfig.Value;</pre>
+        </div>
+        <div class="finding-location">tests/ApiTestFramework.Core/Configuration/ConfigurationProvider.cs</div>
+      </div>
+
+      <div class="finding sev-major">
+        <div class="finding-header">
+          <div class="finding-title">🟠 CreateOrder_WithInvalidProduct_ReturnsBadRequest — zepsuty test</div>
+          <span class="badge badge-major">POWAŻNY</span>
+        </div>
+        <div class="finding-body">
+          <p>Ten test jest wadliwy pod kilkoma względami:</p>
+          <p><strong>1.</strong> Pierwsze wywołanie <code>_orderSteps.GetOrderAsync(0)</code> jest całkowicie nieużywane — to martwy kod.</p>
+          <p><strong>2.</strong> Test ręcznie rozwiązuje <code>ApiClient</code> z kontenera zamiast używać abstrakcji StepClass, co przełamuje warstwy architektoniczne.</p>
+          <p><strong>3.</strong> Klasa <code>OrderServiceSteps</code> nie ma metody <code>TryCreateOrderAsync()</code> dla scenariuszy negatywnych, co zmusiło autora do obejścia przez bezpośredni dostęp do kontenera.</p>
+<pre>// PROBLEM:
+var response = await _orderSteps.GetOrderAsync(0); // ← nieużywane!
+var apiClient = ContainerProvider.ResolveNamed&lt;ApiClient&gt;("OrderService");
+var rawResponse = await apiClient.SendAsync(...);   // ← przełamuje abstrakcję
+
+// POPRAWKA — dodaj do OrderServiceSteps:
+public async Task&lt;RestResponse&lt;Order&gt;&gt; TryCreateOrderAsync(CreateOrderRequest req)
+    =&gt; await _client.SendAsync&lt;Order&gt;(RequestFactory.Post(OrderServiceRoutes.Base, req));</pre>
+        </div>
+        <div class="finding-location">tests/ApiTestFramework.Tests/OrderService/OrderCrudTests.cs : CreateOrder_WithInvalidProduct_ReturnsBadRequest</div>
+      </div>
+
+      <div class="finding sev-major">
+        <div class="finding-header">
+          <div class="finding-title">🟠 Brak metod "Try*" w ProductServiceSteps i OrderServiceSteps</div>
+          <span class="badge badge-major">POWAŻNY</span>
+        </div>
+        <div class="finding-body">
+          <p><code>AuthServiceSteps</code> ma <code>TryRegisterUserAsync()</code> i <code>TryLoginAsync()</code> dla scenariuszy negatywnych. Ale <code>ProductServiceSteps</code> i <code>OrderServiceSteps</code> nie mają żadnych odpowiedników. Testy negatywne są przez to trudniejsze do pisania i zmuszają do omijania warstwy Steps (jak widać w powyższym błędzie).</p>
+        </div>
+        <div class="finding-location">ApiTestFramework.Steps/ServiceSteps/</div>
+      </div>
+
+      <div class="finding sev-major">
+        <div class="finding-header">
+          <div class="finding-title">🟠 Tokeny autoryzacji: hack z pustym stringiem</div>
+          <span class="badge badge-major">POWAŻNY</span>
+        </div>
+        <div class="finding-body">
+          <p>Test <code>ProductService_WithoutToken_ReturnsUnauthorized</code> ustawia pusty nagłówek <code>Authorization: ""</code>, licząc na to, że API go zignoruje. Jest to niestabilne — serwer może to potraktować inaczej niż brak nagłówka. Lepiej byłoby używać oddzielnego klienta bez tokenu.</p>
+<pre>// PROBLEM:
+.WithHeader("Authorization", "")   // ← hack — nie gwarantuje braku tokenu
+
+// POPRAWKA:
+var noAuthClient = new ApiClient(config.ProductService.BaseUrl, "ProductService-noauth");
+var response = await noAuthClient.SendAsync(RequestFactory.Get(ProductServiceRoutes.Base));</pre>
+        </div>
+        <div class="finding-location">tests/ApiTestFramework.Tests/AuthService/AuthCrudTests.cs</div>
+      </div>
+
+      <div class="finding sev-major">
+        <div class="finding-header">
+          <div class="finding-title">🟠 AuditInfo zduplikowane w dwóch przestrzeniach nazw</div>
+          <span class="badge badge-major">POWAŻNY (DRY)</span>
+        </div>
+        <div class="finding-body">
+          <p>Klasa <code>AuditInfo</code> z identyczną strukturą (<code>CreatedAt</code>, <code>UpdatedAt</code>) istnieje w dwóch miejscach:</p>
+          <ul style="color:var(--text2); padding-left: 18px; margin-top: 6px;">
+            <li><code>ApiTestFramework.Clients.ProductService.AuditInfo</code></li>
+            <li><code>ApiTestFramework.Clients.OrderService.AuditInfo</code></li>
+          </ul>
+          <p style="margin-top: 8px;">Powinna być współdzielona w wspólnym namespace <code>ApiTestFramework.Clients.Common</code>.</p>
+        </div>
+        <div class="finding-location">Dtos/ProductDtos.cs | Dtos/OrderDtos.cs</div>
+      </div>
+
+      <div class="finding sev-minor">
+        <div class="finding-header">
+          <div class="finding-title">🟡 OrderDataGenerator: brak wykorzystania pola _faker</div>
+          <span class="badge badge-minor">DROBNA</span>
+        </div>
+        <div class="finding-body">
+          <p>Klasa deklaruje pole <code>private static readonly Faker _faker = new();</code>, ale metoda <code>GenerateUpdateOrderRequest()</code> tworzy lokalnie <code>var faker = new Faker()</code> zamiast używać istniejącego pola. Niekonzystencja.</p>
+<pre>// PROBLEM:
+public static UpdateOrderRequest GenerateUpdateOrderRequest() {
+    return new UpdateOrderRequest {
+        Quantity = _faker.Random.Int(1, 20),     // ← używa _faker
+        CustomerName = _faker.Name.FullName(),   // ← używa _faker
+        Status = _faker.PickRandom&lt;OrderStatus&gt;() // ← używa _faker
+        // ... ale ktoś mógłby dodać: var faker = new Faker() ...
+    };
+}</pre>
+        </div>
+        <div class="finding-location">tests/ApiTestFramework.Steps/DataGenerators/OrderDataGenerator.cs</div>
+      </div>
+
+      <div class="finding sev-minor">
+        <div class="finding-header">
+          <div class="finding-title">🟡 RequestBuilder._contentType — martwy kod</div>
+          <span class="badge badge-minor">DROBNA</span>
+        </div>
+        <div class="finding-body">
+          <p>W metodzie <code>Build()</code> istnieje gałąź obsługująca <code>_contentType != null</code>, która robi to samo co <code>AddJsonBody()</code> (serializuje do JSON). Metoda <code>WithContentType()</code> nigdy nie jest wywołana w żadnym miejscu kodu. To martwy kod, który komplikuje logikę buildera.</p>
+        </div>
+        <div class="finding-location">tests/ApiTestFramework.Core/Client/RequestBuilder.cs : Build()</div>
+      </div>
+
+      <div class="finding sev-minor">
+        <div class="finding-header">
+          <div class="finding-title">🟡 GetAllProducts/Orders — testy są kruche ze względu na dzielony stan DB</div>
+          <span class="badge badge-minor">DROBNA</span>
+        </div>
+        <div class="finding-body">
+          <p>Testy <code>GetAllProducts_ReturnsProductList</code> i <code>GetAllOrders_ReturnsOrderList</code> tworzą dane i potem asertują <code>HaveCountGreaterOrEqualTo(n)</code>. Chociaż ta asercja nie jest wrażliwa na dane z innych testów, to tworzone dane nigdy nie są czyszczone — baza rośnie z każdym uruchomieniem (o ile wolumeny Docker nie są usuwane). Dla lokalnych uruchomień to może powodować wolne testy.</p>
+        </div>
+        <div class="finding-location">ProductCrudTests.cs | OrderCrudTests.cs</div>
+      </div>
+
+      <div class="finding sev-minor">
+        <div class="finding-header">
+          <div class="finding-title">🟡 DTOs są oznaczone jako "PLACEHOLDER" — mylące</div>
+          <span class="badge badge-minor">DROBNA</span>
+        </div>
+        <div class="finding-body">
+          <p>Wszystkie pliki w <code>Dtos/</code> mają komentarz "PLACEHOLDER DTOs — These will be replaced by NSwag-generated code", ale tak naprawdę są to produkcyjne DTOs używane w 22 testach. NSwag nigdy nie był uruchomiony. Komentarz wprowadza w błąd — należy go usunąć lub zaktualizować.</p>
+        </div>
+        <div class="finding-location">tests/ApiTestFramework.Clients/Dtos/*.cs</div>
+      </div>
+
+      <div class="finding sev-good">
+        <div class="finding-header">
+          <div class="finding-title">✅ AllureRequestLogger — solidna implementacja</div>
+          <span class="badge badge-good">ZALETA</span>
+        </div>
+        <div class="finding-body">
+          <p>Automatyczne załączanie requestów i responsów do Allure z pretty-print JSON, informacjami o nagłówkach, parametrach query i body. Klasa <code>TryAddAttachment()</code> gracefully obsługuje brak kontekstu Allure (np. w GlobalSetup). Dobra enkapsulacja.</p>
+        </div>
+      </div>
+
+      <div class="finding sev-good">
+        <div class="finding-header">
+          <div class="finding-title">✅ ResponseAssertions — kompletna i rozszerzalna</div>
+          <span class="badge badge-good">ZALETA</span>
+        </div>
+        <div class="finding-body">
+          <p><code>ShouldHaveStatusCode()</code>, <code>ShouldBeSuccessful()</code>, <code>ShouldHaveData()</code>, <code>ShouldMatchDto()</code>, <code>ShouldMatchDtoExcluding()</code> — kompletny zestaw. Wszystkie asercje przy niepowodzeniu dodają szczegóły do Allure. Wsparcie zarówno dla <code>RestResponse</code> i <code>RestResponse&lt;T&gt;</code>.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ KISS ══ -->
+  <div id="kiss" class="section">
+    <div class="section-title"><span class="icon">💡</span>Analiza zasady KISS (Keep It Simple, Stupid)</div>
+
+    <div class="two-col" style="margin-bottom:20px">
+      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:18px">
+        <h4 style="color:var(--green); margin-bottom:10px">✅ Gdzie KISS jest zachowany</h4>
+        <ul style="color:var(--text2); padding-left:16px; font-size:13px; line-height:1.8">
+          <li><code>RequestFactory</code> — jednoliniowe skróty bez magii</li>
+          <li><code>BaseTest</code> — prosty cykl życia, bez nadmiernej abstrakcji</li>
+          <li><code>DataGenerators</code> — statyczne klasy, zero konfiguracji</li>
+          <li><code>Routes.cs</code> — proste stałe string, nic więcej</li>
+          <li>Wzorzec Tests → Steps → ApiClient jest liniowy i przewidywalny</li>
+          <li>Testy mają Arrange/Act/Assert wyraźnie rozdzielone</li>
+        </ul>
+      </div>
+      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:18px">
+        <h4 style="color:var(--red); margin-bottom:10px">❌ Gdzie KISS jest naruszony</h4>
+        <ul style="color:var(--text2); padding-left:16px; font-size:13px; line-height:1.8">
+          <li>Autofac DI dla 3 obiektów tej samej klasy — przesada</li>
+          <li>Dwa globalne singletony (<code>TokenProvider</code> + <code>ContainerProvider</code>) obok Autofac</li>
+          <li><code>RequestBuilder._contentType</code> — martwa gałąź komplikuje logikę</li>
+          <li><code>TestConfiguration</code> + <code>ApiClientModule</code> — dwa miejsca do aktualizacji per nowy serwis</li>
+          <li><code>OpenApi</code> projekt — martwy kod w rozwiązaniu</li>
+          <li>Podwójne logowanie (w <code>ApiClient</code> i w każdej klasie Steps)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="findings">
+      <div class="finding sev-major">
+        <div class="finding-header">
+          <div class="finding-title">🟠 Autofac jest przesadą dla trzech instancji ApiClient</div>
+          <span class="badge badge-major">KISS naruszony</span>
+        </div>
+        <div class="finding-body">
+          <p>Framework używa pełnego kontenera IoC Autofac wyłącznie po to, żeby zarejestrować 3 named instancje <code>ApiClient</code>. Dodatkowo <code>ContainerProvider</code> jest statycznym singletonen — więc de facto Autofac jest wrapperem na słownik. Prosta alternatywa:</p>
+<pre>// Prosta klasa "serwisów" zastępująca Autofac + ContainerProvider:
+public static class ApiClients
+{
+    public static ApiClient Auth    { get; private set; } = null!;
+    public static ApiClient Product { get; private set; } = null!;
+    public static ApiClient Order   { get; private set; } = null!;
+    
+    public static void Initialize(TestConfiguration config) {
+        Auth    = new ApiClient(config.AuthService.BaseUrl, "AuthService");
+        Product = new ApiClient(config.ProductService.BaseUrl, "ProductService");
+        Order   = new ApiClient(config.OrderService.BaseUrl, "OrderService");
+    }
+}</pre>
+          <p>Zaletą obecnego rozwiązania jest jednak to, że łatwo można w przyszłości dodać bardziej złożony DI (mock serwisy, dekoratory). Jeśli framework ma rosnąć, Autofac ma sens. Przy obecnej skali — nie.</p>
+        </div>
+      </div>
+
+      <div class="finding sev-minor">
+        <div class="finding-header">
+          <div class="finding-title">🟡 TokenProvider + Autofac — dwa różne mechanizmy do tego samego</div>
+          <span class="badge badge-minor">KISS</span>
+        </div>
+        <div class="finding-body">
+          <p>Framework ma dwa niezależne mechanizmy do przechowywania globalnego stanu: <code>ContainerProvider</code> (Autofac) do klientów API, i <code>TokenProvider</code> (własny statyczny singleton) do tokenu JWT. Logika auto-inject tokenu w <code>RequestBuilder.Build()</code> to ukryty efekt uboczny — budowanie requestu nie powinno mieć dostępu do globalnego stanu autoryzacji. Token powinien być dodawany w <code>ApiClient.ExecuteAsync()</code> lub przekazywany explicite.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ BEST PRACTICES ══ -->
+  <div id="practices" class="section">
+    <div class="section-title"><span class="icon">📋</span>Najlepsze praktyki programowania</div>
+
+    <div class="table-wrap" style="margin-bottom:24px">
+      <table>
+        <thead>
+          <tr>
+            <th>Praktyka</th>
+            <th>Status</th>
+            <th>Komentarz</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Nazewnictwo metod testowych <code>Method_Scenario_Expected</code></td>
+            <td><span class="tag tag-green">✅ OK</span></td>
+            <td>Spójne w całym projekcie. Przykład: <code>CreateProduct_WithValidData_ReturnsCreated</code></td>
+          </tr>
+          <tr>
+            <td>Arrange / Act / Assert w testach</td>
+            <td><span class="tag tag-green">✅ OK</span></td>
+            <td>Komentarze AAA są obecne i spójne w większości testów</td>
+          </tr>
+          <tr>
+            <td>Testy są <code>async Task</code></td>
+            <td><span class="tag tag-green">✅ OK</span></td>
+            <td>Wszystkie 22 testy używają async/await — brak blokujących wywołań</td>
+          </tr>
+          <tr>
+            <td>Realistyczne dane testowe (Bogus)</td>
+            <td><span class="tag tag-green">✅ OK</span></td>
+            <td>Generatory używają realistycznych danych — imiona, emaile, produkty</td>
+          </tr>
+          <tr>
+            <td>Allure <code>[AllureStep]</code> adnotacje</td>
+            <td><span class="tag tag-green">✅ OK</span></td>
+            <td>Każda metoda Steps ma atrybut — widoczna hierarchia w raporcie</td>
+          </tr>
+          <tr>
+            <td>Izolacja testów (brak zależności między testami)</td>
+            <td><span class="tag tag-yellow">⚠️ CZĘŚCIOWO</span></td>
+            <td>Testy tworzą własne dane, ale nie czyszczą po sobie. Zależność na wspólnym tokenie z GlobalSetup</td>
+          </tr>
+          <tr>
+            <td>Scenariusze negatywne (4xx)</td>
+            <td><span class="tag tag-yellow">⚠️ CZĘŚCIOWO</span></td>
+            <td>Auth ma dobry zestaw. Product/Order — ograniczone. Brak testów 400 dla PUT/POST z niepoprawnymi danymi</td>
+          </tr>
+          <tr>
+            <td>Brak magicznych liczb / stringów</td>
+            <td><span class="tag tag-yellow">⚠️ CZĘŚCIOWO</span></td>
+            <td><code>99999</code> jako "nieistniejące ID" powtarza się w kilku testach bez nazwanych stałych</td>
+          </tr>
+          <tr>
+            <td>Single Responsibility w klasach</td>
+            <td><span class="tag tag-yellow">⚠️ CZĘŚCIOWO</span></td>
+            <td><code>RequestBuilder.Build()</code> odpowiada za budowanie requestu ORAZ za auto-inject tokenu</td>
+          </tr>
+          <tr>
+            <td>Thread safety globalnego stanu</td>
+            <td><span class="tag tag-red">❌ PROBLEM</span></td>
+            <td><code>ConfigurationProvider</code> bez lock. <code>TokenProvider</code> ma lock — OK. <code>ContainerProvider</code> bez lock przy Initialize()</td>
+          </tr>
+          <tr>
+            <td>Brak duplikacji kodu (DRY)</td>
+            <td><span class="tag tag-red">❌ PROBLEM</span></td>
+            <td><code>AuditInfo</code> w dwóch namespace'ach. Podwójne logowanie w Steps i ApiClient</td>
+          </tr>
+          <tr>
+            <td>Hardkodowane dane testowe</td>
+            <td><span class="tag tag-red">❌ PROBLEM</span></td>
+            <td><code>GlobalSetup</code>: stała nazwa użytkownika. <code>OrderCrudTests</code>: hardkodowany string "Updated Customer Name"</td>
+          </tr>
+          <tr>
+            <td>Używanie <code>IDisposable</code> poprawnie</td>
+            <td><span class="tag tag-green">✅ OK</span></td>
+            <td><code>ApiClient</code> implementuje <code>IDisposable</code> i woła <code>GC.SuppressFinalize</code></td>
+          </tr>
+          <tr>
+            <td>Nullable reference types</td>
+            <td><span class="tag tag-green">✅ OK</span></td>
+            <td><code>&lt;Nullable&gt;enable&lt;/Nullable&gt;</code> we wszystkich projektach. Używane konsekwentnie</td>
+          </tr>
+          <tr>
+            <td>XML dokumentacja</td>
+            <td><span class="tag tag-green">✅ OK</span></td>
+            <td>Klasy Core i Steps mają <code>///</code> komentarze na publicznych metodach</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="findings">
+      <div class="finding sev-major">
+        <div class="finding-header">
+          <div class="finding-title">🟠 Auto-inject tokenu w RequestBuilder.Build() narusza SRP</div>
+          <span class="badge badge-major">POWAŻNY</span>
+        </div>
+        <div class="finding-body">
+          <p>Metoda <code>Build()</code> ma ukryty efekt uboczny — odczytuje globalny stan z <code>TokenProvider</code>. Budowniczy requestu nie powinien wiedzieć o tokenach autoryzacji. To zadanie <code>ApiClient.ExecuteAsync()</code>:</p>
+<pre>// PROBLEM — w RequestBuilder.Build():
+if (!_headers.ContainsKey("Authorization") &amp;&amp; TokenProvider.HasToken)
+    _headers["Authorization"] = $"Bearer {TokenProvider.Token}";
+
+// POPRAWKA — przenieś do ApiClient.ExecuteAsync():
+public async Task&lt;RestResponse&gt; ExecuteAsync(RestRequest request) {
+    if (!request.Parameters.Any(p =&gt; p.Name == "Authorization")
+        &amp;&amp; TokenProvider.HasToken)
+        request.AddHeader("Authorization", $"Bearer {TokenProvider.Token}");
+    // ...
+}</pre>
+        </div>
+      </div>
+
+      <div class="finding sev-minor">
+        <div class="finding-header">
+          <div class="finding-title">🟡 Podwójne logowanie: Steps + ApiClient</div>
+          <span class="badge badge-minor">DROBNA</span>
+        </div>
+        <div class="finding-body">
+          <p>Każda klasa Steps loguje "Creating product: {Name}" itp., a <code>ApiClient.ExecuteAsync()</code> loguje "[ProductService] POST /api/products". W konsoli Jenkins widoczne są dwa logi na każde wywołanie. Steps powinny albo nie logować (bo ApiClient to robi), albo logować tylko informacje biznesowe nieobjęte przez ApiClient.</p>
+        </div>
+      </div>
+
+      <div class="finding sev-minor">
+        <div class="finding-header">
+          <div class="finding-title">🟡 CreateProductAndReturnIdAsync() — zbędny wrapper</div>
+          <span class="badge badge-minor">DROBNA</span>
+        </div>
+        <div class="finding-body">
+          <p>Metoda <code>CreateProductAndReturnIdAsync()</code> jest jednolinijkowym wrapperem na <code>CreateProductAsync()</code>. Taki wrapper nie jest wart tworzenia osobnej metody z atrybutem <code>[AllureStep]</code>. Wystarczy: <code>(await _productSteps.CreateProductAsync()).Id</code> w miejscu użycia.</p>
+        </div>
+      </div>
+
+      <div class="finding sev-good">
+        <div class="finding-header">
+          <div class="finding-title">✅ OrderServiceSteps.CreateOrderWithProductAsync() — dobra enkapsulacja zależności</div>
+          <span class="badge badge-good">ZALETA</span>
+        </div>
+        <div class="finding-body">
+          <p>Metoda enkapsuluje zależność Order→Product: tworzy produkt, potem zamówienie. Testy nie muszą wiedzieć o cross-service dependency — dostają gotowy stan. To właściwy poziom abstrakcji dla klasy Steps.</p>
+        </div>
+      </div>
+
+      <div class="finding sev-good">
+        <div class="finding-header">
+          <div class="finding-title">✅ Wzorzec "Try*" w AuthServiceSteps — dobra konwencja dla testów negatywnych</div>
+          <span class="badge badge-good">ZALETA</span>
+        </div>
+        <div class="finding-body">
+          <p>Konwencja "szczęśliwa ścieżka zwraca DTO, Try-wariant zwraca raw RestResponse" jest elegancka. Testy asertują status kod bezpośrednio bez try/catch. Należy rozszerzyć ten wzorzec na Product i Order steps.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ DEPS ══ -->
+  <div id="deps" class="section">
+    <div class="section-title"><span class="icon">📦</span>Zależności i wersje bibliotek</div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Biblioteka</th><th>Wersja</th><th>Cel</th><th>Ocena</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>RestSharp</td><td>112.1.0</td>
+            <td>Klient HTTP</td>
+            <td><span class="tag tag-green">✅ Aktualna</span></td>
+          </tr>
+          <tr>
+            <td>NUnit</td><td>4.2.2</td>
+            <td>Test runner</td>
+            <td><span class="tag tag-green">✅ Aktualna (NUnit 4)</span></td>
+          </tr>
+          <tr>
+            <td>Allure.NUnit</td><td>2.12.1</td>
+            <td>Raportowanie</td>
+            <td><span class="tag tag-yellow">⚠️ Uwaga: ALLURE_RESULTS_DIRECTORY nie działa w tej wersji</span></td>
+          </tr>
+          <tr>
+            <td>FluentAssertions</td><td>7.0.0</td>
+            <td>Asercje</td>
+            <td><span class="tag tag-green">✅ Aktualna (FA 7)</span></td>
+          </tr>
+          <tr>
+            <td>Bogus</td><td>35.6.1</td>
+            <td>Generacja danych</td>
+            <td><span class="tag tag-green">✅ Aktualna</span></td>
+          </tr>
+          <tr>
+            <td>Autofac</td><td>8.1.1</td>
+            <td>DI Container</td>
+            <td><span class="tag tag-yellow">⚠️ Przesada dla 3 obiektów — ale nie błąd</span></td>
+          </tr>
+          <tr>
+            <td>Serilog</td><td>4.1.0</td>
+            <td>Logowanie</td>
+            <td><span class="tag tag-green">✅ Aktualna</span></td>
+          </tr>
+          <tr>
+            <td>Newtonsoft.Json</td><td>13.0.3</td>
+            <td>Serializacja JSON</td>
+            <td><span class="tag tag-yellow">⚠️ System.Text.Json byłby szybszy, ale Newtonsoft jest OK</span></td>
+          </tr>
+          <tr>
+            <td>Microsoft.OpenApi.Readers</td><td>1.6.14</td>
+            <td>Parsowanie OpenAPI</td>
+            <td><span class="tag tag-yellow">⚠️ Używane tylko w martwym projekcie OpenApi</span></td>
+          </tr>
+          <tr>
+            <td>NSwag.MSBuild</td><td>14.1.0</td>
+            <td>Generacja klientów</td>
+            <td><span class="tag tag-red">❌ Nigdy nie uruchomiony — DTOs wciąż są "placeholders"</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══ RECOMMENDATIONS ══ -->
+  <div id="recommendations" class="section">
+    <div class="section-title"><span class="icon">🎯</span>Rekomendacje priorytetowe</div>
+
+    <div class="rec-grid">
+
+      <div class="rec-card">
+        <div class="rec-priority pri-1">P1 — Krytyczny</div>
+        <h4>Napraw hardkodowaną nazwę użytkownika w GlobalSetup</h4>
+        <p>Zastąp statyczną nazwę <code>"test_user_global"</code> wywołaniem <code>AuthDataGenerator.GenerateRegisterRequest()</code>. Zapobiegnie to błędom przy lokalnych uruchomieniach z persystentną bazą danych.</p>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-priority pri-1">P1 — Krytyczny</div>
+        <h4>Napraw thread safety w ConfigurationProvider</h4>
+        <p>Użyj <code>Lazy&lt;IConfiguration&gt;</code> lub dodaj <code>lock(_lockObj)</code> wokół inicjalizacji <code>_configuration</code>. Bez tego jest potencjalny race condition w równoległym środowisku.</p>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-priority pri-2">P2 — Poważny</div>
+        <h4>Dodaj metody Try* do ProductServiceSteps i OrderServiceSteps</h4>
+        <p>Wzoruj się na <code>AuthServiceSteps.TryRegisterUserAsync()</code>. Dodaj <code>TryCreateProductAsync()</code>, <code>TryUpdateProductAsync()</code>, <code>TryCreateOrderAsync()</code> itd. Umożliwi to poprawne testy negatywne bez omijania warstwy Steps.</p>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-priority pri-2">P2 — Poważny</div>
+        <h4>Napraw test CreateOrder_WithInvalidProduct_ReturnsBadRequest</h4>
+        <p>Usuń martwe wywołanie <code>GetOrderAsync(0)</code>. Po dodaniu <code>TryCreateOrderAsync()</code> użyj tej metody zamiast bezpośredniego dostępu do kontenera Autofac.</p>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-priority pri-2">P2 — Poważny</div>
+        <h4>Przenieś auto-inject tokenu z RequestBuilder do ApiClient</h4>
+        <p>Budowniczy nie powinien mieć dostępu do globalnego stanu. Przenieś logikę <code>TokenProvider.HasToken</code> do <code>ApiClient.ExecuteAsync()</code>. Uprości to <code>RequestBuilder</code> i naprawi test <code>ProductService_WithoutToken</code>.</p>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-priority pri-2">P2 — Poważny</div>
+        <h4>Usuń duplikat AuditInfo — wspólny namespace Clients.Common</h4>
+        <p>Przenieś <code>AuditInfo</code> do nowego pliku <code>Dtos/CommonDtos.cs</code> w namespace <code>ApiTestFramework.Clients.Common</code>. Usuń kopie z <code>ProductDtos.cs</code> i <code>OrderDtos.cs</code>.</p>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-priority pri-3">P3 — Ważny</div>
+        <h4>Zmień TestConfiguration na Dictionary dla serwisów</h4>
+        <p>Zmień trzy osobne właściwości ServiceConfig na <code>Dictionary&lt;string, ServiceConfig&gt; Services</code>. ApiClientModule będzie mógł iterować i rejestrować klientów automatycznie — dodanie nowego serwisu nie wymaga zmiany kodu C#.</p>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-priority pri-3">P3 — Ważny</div>
+        <h4>Usuń lub zintegruj projekt ApiTestFramework.OpenApi</h4>
+        <p>Albo dodaj projekt do sln i zintegruj scaffolding w procesie CI, albo usuń go. Martwy projekt w rozwiązaniu wprowadza zamieszanie. Jeśli zostaje, dodaj README z instrukcją użycia.</p>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-priority pri-3">P3 — Ważny</div>
+        <h4>Usuń komentarze "PLACEHOLDER" z DTOs</h4>
+        <p>DTOs są produkcyjne i używane w 22 testach. Komentarze "will be replaced by NSwag" są mylące. Zaktualizuj je lub usuń. Jeśli NSwag ma być używany, zrób to — jeśli nie, usuń NSwag z zależności.</p>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-priority pri-4">P4 — Ulepszenie</div>
+        <h4>Usuń martwy kod: RequestBuilder._contentType</h4>
+        <p>Usuń pole <code>_contentType</code>, metodę <code>WithContentType()</code> i gałąź w <code>Build()</code>. Upraszcza kod i eliminuje niepotrzebną złożoność.</p>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-priority pri-4">P4 — Ulepszenie</div>
+        <h4>Usuń CreateProductAndReturnIdAsync()</h4>
+        <p>Jednoliniowy wrapper nie zasługuje na osobną metodę z <code>[AllureStep]</code>. Użyj <code>(await CreateProductAsync()).Id</code> bezpośrednio w miejscu użycia.</p>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-priority pri-4">P4 — Ulepszenie</div>
+        <h4>Stałe dla "nieistniejących ID" w testach</h4>
+        <p>Zastąp magiczną liczbę <code>99999</code> nazwaną stałą np. <code>private const int NonExistentId = 99999;</code> w klasie BaseTest lub osobnym pliku stałych testowych.</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ FOOTER ══ -->
+  <hr class="divider">
+  <div style="text-align:center; color:var(--text3); font-size:12px; padding-bottom:40px">
+    Raport wygenerowany: 29 kwiecień 2026 &bull; API Test Framework v1.0 &bull; Build #14 (22/22 testów zielonych)
+  </div>
+
+</div>
+</body>
+</html>

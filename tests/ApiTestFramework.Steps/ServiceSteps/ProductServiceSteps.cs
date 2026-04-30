@@ -14,7 +14,7 @@ namespace ApiTestFramework.Steps.ServiceSteps;
 /// Only service-specific behaviour (random-data overloads) lives here.
 /// </summary>
 public class ProductServiceSteps
-    : CrudServiceStepsBase<Product, CreateProductRequest, UpdateProductRequest>
+    : CrudServiceSteps<Product, CreateProductRequest, UpdateProductRequest>
 {
     public ProductServiceSteps()
         : base("ProductService", ProductServiceRoutes.Base, ProductServiceRoutes.ById) { }

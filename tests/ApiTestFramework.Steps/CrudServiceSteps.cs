@@ -9,25 +9,31 @@ using System.Net;
 namespace ApiTestFramework.Steps;
 
 /// <summary>
-/// Generic base for CRUD step classes. Eliminates the copy-paste boilerplate of
-/// Create / Get / GetAll / Update / Delete for every microservice.
+/// Generic CRUD step class for microservice test automation.
+/// Can be used directly (zero boilerplate) or subclassed for service-specific behaviour.
 ///
-/// Usage — create a thin subclass:
+/// Direct use — pure CRUD service, no subclass needed:
 /// <code>
-/// public class ProductServiceSteps
-///     : CrudServiceStepsBase&lt;Product, CreateProductRequest, UpdateProductRequest&gt;
-/// {
-///     public ProductServiceSteps()
-///         : base("ProductService", "/api/products", "/api/products/{id}") { }
-/// }
+/// var steps = new CrudServiceSteps&lt;InventoryItem, CreateItemRequest, UpdateItemRequest&gt;(
+///     "InventoryService", "/api/inventory", "/api/inventory/{id}");
 /// </code>
 ///
-/// Override any method to add service-specific behaviour.
+/// Subclass only when a service has extra behaviour (custom routes, cross-service setup, etc.):
+/// <code>
+/// public class OrderServiceSteps
+///     : CrudServiceSteps&lt;Order, CreateOrderRequest, UpdateOrderRequest&gt;
+/// {
+///     public OrderServiceSteps()
+///         : base("OrderService", "/api/orders", "/api/orders/{id}") { }
+///
+///     public async Task&lt;Order&gt; CreateOrderWithProductAsync() { ... }
+/// }
+/// </code>
 /// </summary>
 /// <typeparam name="TEntity">Response entity type (e.g. <c>Product</c>).</typeparam>
 /// <typeparam name="TCreate">Create request DTO.</typeparam>
 /// <typeparam name="TUpdate">Update request DTO.</typeparam>
-public abstract class CrudServiceStepsBase<TEntity, TCreate, TUpdate>
+public class CrudServiceSteps<TEntity, TCreate, TUpdate>
     where TEntity : class
     where TCreate : class
     where TUpdate : class
@@ -37,7 +43,7 @@ public abstract class CrudServiceStepsBase<TEntity, TCreate, TUpdate>
     private readonly string _basePath;
     private readonly string _byIdPath;
 
-    protected CrudServiceStepsBase(string serviceName, string basePath, string byIdPath)
+    public CrudServiceSteps(string serviceName, string basePath, string byIdPath)
     {
         Client = ContainerProvider.ResolveNamed<ApiClient>(serviceName);
         Logger = Log.ForContext(GetType());
@@ -60,8 +66,8 @@ public abstract class CrudServiceStepsBase<TEntity, TCreate, TUpdate>
 
     /// <summary>Gets an entity by id and returns the raw response (caller asserts status).</summary>
     [AllureStep("Get entity by Id: {id}")]
-    public virtual async Task<RestResponse<TEntity>> GetAsync(int id)
-        => await Client.SendAsync<TEntity>(
+    public virtual Task<RestResponse<TEntity>> GetAsync(int id)
+        => Client.SendAsync<TEntity>(
             RequestBuilder.Create()
                 .WithMethod(Method.Get)
                 .WithPath(_byIdPath)
@@ -69,14 +75,14 @@ public abstract class CrudServiceStepsBase<TEntity, TCreate, TUpdate>
 
     /// <summary>Gets all entities and returns the raw response.</summary>
     [AllureStep("Get all entities")]
-    public virtual async Task<RestResponse<List<TEntity>>> GetAllAsync()
-        => await Client.SendAsync<List<TEntity>>(
+    public virtual Task<RestResponse<List<TEntity>>> GetAllAsync()
+        => Client.SendAsync<List<TEntity>>(
             RequestFactory.Get(_basePath));
 
     /// <summary>Updates an entity and returns the raw response.</summary>
     [AllureStep("Update entity with Id: {id}")]
-    public virtual async Task<RestResponse<TEntity>> UpdateAsync(int id, TUpdate updateRequest)
-        => await Client.SendAsync<TEntity>(
+    public virtual Task<RestResponse<TEntity>> UpdateAsync(int id, TUpdate updateRequest)
+        => Client.SendAsync<TEntity>(
             RequestBuilder.Create()
                 .WithMethod(Method.Put)
                 .WithPath(_byIdPath)
@@ -85,8 +91,8 @@ public abstract class CrudServiceStepsBase<TEntity, TCreate, TUpdate>
 
     /// <summary>Deletes an entity and returns the raw response.</summary>
     [AllureStep("Delete entity with Id: {id}")]
-    public virtual async Task<RestResponse> DeleteAsync(int id)
-        => await Client.SendAsync(
+    public virtual Task<RestResponse> DeleteAsync(int id)
+        => Client.SendAsync(
             RequestBuilder.Create()
                 .WithMethod(Method.Delete)
                 .WithPath(_byIdPath)
@@ -96,14 +102,14 @@ public abstract class CrudServiceStepsBase<TEntity, TCreate, TUpdate>
 
     /// <summary>Attempts create — returns raw response for negative-path assertions.</summary>
     [AllureStep("Attempt to create entity (raw response)")]
-    public virtual async Task<RestResponse<TEntity>> TryCreateAsync(TCreate createRequest)
-        => await Client.SendAsync<TEntity>(
+    public virtual Task<RestResponse<TEntity>> TryCreateAsync(TCreate createRequest)
+        => Client.SendAsync<TEntity>(
             RequestFactory.Post(_basePath, createRequest));
 
     /// <summary>Attempts update — returns raw response for negative-path assertions.</summary>
     [AllureStep("Attempt to update entity with Id: {id} (raw response)")]
-    public virtual async Task<RestResponse<TEntity>> TryUpdateAsync(int id, TUpdate updateRequest)
-        => await Client.SendAsync<TEntity>(
+    public virtual Task<RestResponse<TEntity>> TryUpdateAsync(int id, TUpdate updateRequest)
+        => Client.SendAsync<TEntity>(
             RequestBuilder.Create()
                 .WithMethod(Method.Put)
                 .WithPath(_byIdPath)
@@ -112,8 +118,8 @@ public abstract class CrudServiceStepsBase<TEntity, TCreate, TUpdate>
 
     /// <summary>Attempts delete — returns raw response for negative-path assertions.</summary>
     [AllureStep("Attempt to delete entity with Id: {id} (raw response)")]
-    public virtual async Task<RestResponse> TryDeleteAsync(int id)
-        => await Client.SendAsync(
+    public virtual Task<RestResponse> TryDeleteAsync(int id)
+        => Client.SendAsync(
             RequestBuilder.Create()
                 .WithMethod(Method.Delete)
                 .WithPath(_byIdPath)
