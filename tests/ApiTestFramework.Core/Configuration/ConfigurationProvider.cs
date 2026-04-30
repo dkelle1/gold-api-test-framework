@@ -49,7 +49,7 @@ public static class ConfigurationProvider
             .AddJsonFile("appsettings.test.json", optional: false, reloadOnChange: false)
             .AddJsonFile($"appsettings.test.{environment}.json", optional: true, reloadOnChange: false)
             .AddEnvironmentVariables(prefix: "TEST_")
-            .AddConsul($"{keyPrefix}/", options =>
+            .AddConsul($"{keyPrefix}", options =>
             {
                 options.ConsulConfigurationOptions = cfg =>
                     cfg.Address = new Uri(consulAddress);

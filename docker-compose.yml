@@ -25,18 +25,10 @@ services:
     depends_on:
       consul:
         condition: service_healthy
-    entrypoint: >
-      sh -c "
-        BASE=http://consul:8500/v1/kv/api-test-framework &&
-        curl -sS -X PUT $$BASE/Services/AuthService/BaseUrl    -d 'http://auth-service:8080'    &&
-        curl -sS -X PUT $$BASE/Services/ProductService/BaseUrl -d 'http://product-service:8080' &&
-        curl -sS -X PUT $$BASE/Services/OrderService/BaseUrl   -d 'http://order-service:8080'   &&
-        curl -sS -X PUT $$BASE/DefaultTimeoutSeconds           -d '30'                           &&
-        curl -sS -X PUT $$BASE/RetryCount                      -d '0'                            &&
-        echo done > /tmp/seeded &&
-        echo 'consul-init: KV seeding done' &&
-        tail -f /dev/null
-      "
+    entrypoint:
+      - sh
+      - -c
+      - "curl -sS -X PUT http://consul:8500/v1/kv/api-test-framework --data-binary '{\"Services\":{\"AuthService\":{\"BaseUrl\":\"http://auth-service:8080\"},\"ProductService\":{\"BaseUrl\":\"http://product-service:8080\"},\"OrderService\":{\"BaseUrl\":\"http://order-service:8080\"}},\"DefaultTimeoutSeconds\":30,\"RetryCount\":0}' && echo done > /tmp/seeded && echo 'consul-init: KV seeding done' && tail -f /dev/null"
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/seeded"]
       interval: 2s
