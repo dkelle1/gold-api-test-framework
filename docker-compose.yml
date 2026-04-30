@@ -17,6 +17,8 @@ services:
       timeout: 3s
 
   # Runs once after Consul is healthy; registers all service base-urls in KV.
+  # Stays alive (tail -f /dev/null) so docker compose up --wait doesn't treat
+  # the expected exit-0 as a failure; healthcheck signals when seeding is done.
   consul-init:
     image: curlimages/curl:8.7.1
     container_name: consul-init
@@ -31,8 +33,16 @@ services:
         curl -sS -X PUT $$BASE/Services/OrderService/BaseUrl   -d 'http://order-service:8080'   &&
         curl -sS -X PUT $$BASE/DefaultTimeoutSeconds           -d '30'                           &&
         curl -sS -X PUT $$BASE/RetryCount                      -d '0'                            &&
-        echo 'consul-init: KV seeding done'
+        echo done > /tmp/seeded &&
+        echo 'consul-init: KV seeding done' &&
+        tail -f /dev/null
       "
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/seeded"]
+      interval: 2s
+      retries: 30
+      start_period: 5s
+      timeout: 2s
     restart: "no"
 
   sqlserver:
