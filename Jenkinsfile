@@ -64,6 +64,7 @@ pipeline {
                     export TEST_Services__AuthService__BaseUrl=http://auth-service:8080
                     export TEST_Services__ProductService__BaseUrl=http://product-service:8080
                     export TEST_Services__OrderService__BaseUrl=http://order-service:8080
+                    export TEST_Consul__Address=http://consul:8500
                     dotnet test tests/ApiTestFramework.Tests/ApiTestFramework.Tests.csproj \\
                         -c Release --no-build \\
                         --logger "trx;LogFileName=results.trx" \\

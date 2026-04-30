@@ -2,6 +2,41 @@ services:
 
   # ── Infrastructure ──────────────────────────────────────────────────────────
 
+  consul:
+    image: hashicorp/consul:1.18
+    container_name: consul
+    ports:
+      - "8500:8500"   # HTTP API + UI
+      - "8600:8600/udp" # DNS
+    command: "agent -dev -client=0.0.0.0 -ui"
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 5s
+      retries: 10
+      start_period: 10s
+      timeout: 3s
+
+  # Runs once after Consul is healthy; registers all service base-urls in KV.
+  # Stays alive (tail -f /dev/null) so docker compose up --wait doesn't treat
+  # the expected exit-0 as a failure; healthcheck signals when seeding is done.
+  consul-init:
+    image: curlimages/curl:8.7.1
+    container_name: consul-init
+    depends_on:
+      consul:
+        condition: service_healthy
+    entrypoint:
+      - sh
+      - -c
+      - "curl -sS -X PUT http://consul:8500/v1/kv/api-test-framework --data-binary '{\"Services\":{\"AuthService\":{\"BaseUrl\":\"http://auth-service:8080\"},\"ProductService\":{\"BaseUrl\":\"http://product-service:8080\"},\"OrderService\":{\"BaseUrl\":\"http://order-service:8080\"}},\"DefaultTimeoutSeconds\":30,\"RetryCount\":0}' && echo done > /tmp/seeded && echo 'consul-init: KV seeding done' && tail -f /dev/null"
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/seeded"]
+      interval: 2s
+      retries: 30
+      start_period: 5s
+      timeout: 2s
+    restart: "no"
+
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: sqlserver
@@ -56,6 +91,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      consul:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8080' 2>/dev/null || exit 1"]
       interval: 10s
@@ -82,6 +119,8 @@ services:
       sqlserver:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      consul:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8080' 2>/dev/null || exit 1"]
@@ -110,6 +149,8 @@ services:
       sqlserver:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      consul:
         condition: service_healthy
       product-service:
         condition: service_healthy
