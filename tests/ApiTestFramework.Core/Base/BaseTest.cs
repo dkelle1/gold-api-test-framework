@@ -1,4 +1,5 @@
 using Allure.NUnit;
+using ApiTestFramework.Core.Auth;
 using NUnit.Framework;
 using Serilog;
 
@@ -15,6 +16,26 @@ public abstract class BaseTest
     protected const int NonExistentId = 999_999;
 
     protected ILogger Logger { get; private set; } = null!;
+
+    // ── Per-test token override ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Overrides the Bearer token for the current test's async execution context.
+    /// The previous token (or no token) is restored when the returned scope is disposed.
+    ///
+    /// Use this when a single test needs to send one or more requests as a specific user
+    /// without changing the global token.
+    ///
+    /// <code>
+    /// using var scope = UseToken(otherUserToken);
+    /// var response = await _productClient.SendAsync(RequestFactory.Get("/api/products"));
+    /// // Previous token restored here
+    /// </code>
+    ///
+    /// For creating a fresh user <i>and</i> entering the scope in one step, prefer
+    /// <see cref="ApiTestFramework.Steps.ServiceSteps.AuthServiceSteps.CreateUserScopeAsync"/>.
+    /// </summary>
+    protected static TokenScope UseToken(string token) => TokenScope.Use(token);
 
     // ── Test data cleanup registry ───────────────────────────────────────────────
 

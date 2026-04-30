@@ -37,6 +37,23 @@ public class AuthServiceSteps
     }
 
     /// <summary>
+    /// Registers a new random user with the given <paramref name="role"/> and returns the
+    /// auth response. Use the returned value to enter a <see cref="ApiTestFramework.Steps.Auth.UserScope"/>
+    /// synchronously in the calling test method so the token is set in the correct
+    /// <see cref="System.Threading.AsyncLocal{T}"/> execution context:
+    /// <code>
+    /// var auth = await _authSteps.RegisterUserAsync("Admin");
+    /// await using var scope = UserScope.FromAuthResponse(auth); // sync — correct context
+    /// </code>
+    /// </summary>
+    [AllureStep("Register a new user with role: {role}")]
+    public async Task<AuthResponse> RegisterUserAsync(string role)
+    {
+        var request = AuthDataGenerator.GenerateRegisterRequest(role);
+        return await RegisterUserAsync(request);
+    }
+
+    /// <summary>
     /// Registers a new user with a specific request.
     /// </summary>
     [AllureStep("Register a new user")]
