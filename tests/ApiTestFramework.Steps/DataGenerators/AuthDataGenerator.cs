@@ -10,14 +10,14 @@ public static class AuthDataGenerator
 {
     private static readonly Faker _faker = new("en");
 
-    public static RegisterRequest GenerateRegisterRequest()
+    public static RegisterRequest GenerateRegisterRequest(string role = "User")
     {
         return new RegisterRequest
         {
             Username = _faker.Internet.UserName() + _faker.Random.Number(1000, 9999),
             Email = _faker.Internet.Email(),
             Password = "TestPass123!",
-            Role = "User"
+            Role = role
         };
     }
 

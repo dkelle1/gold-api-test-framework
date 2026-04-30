@@ -5,6 +5,7 @@ using ApiTestFramework.Core.Assertions;
 using ApiTestFramework.Core.Client;
 using ApiTestFramework.Core.Constants;
 using ApiTestFramework.Core.DI;
+using ApiTestFramework.Steps.Auth;
 using ApiTestFramework.Steps.DataGenerators;
 using RestSharp;
 using Serilog;
@@ -126,4 +127,19 @@ public class AuthServiceSteps
 
         return response;
     }
+
+    /// <summary>
+    /// Registers a new random user with the given <paramref name="role"/> and returns a
+    /// <see cref="UserScope"/> that overrides the Bearer token for the current async
+    /// execution context until the scope is disposed.
+    ///
+    /// <code>
+    /// await using var admin = await _authSteps.CreateUserScopeAsync(role: "Admin");
+    /// // Requests made here use admin's token automatically.
+    /// admin.AuthResponse.User.Role.Should().Be("Admin");
+    /// </code>
+    /// </summary>
+    [AllureStep("Create user scope (role: {role})")]
+    public Task<UserScope> CreateUserScopeAsync(string role = "User")
+        => UserScope.CreateAsync(this, role);
 }
