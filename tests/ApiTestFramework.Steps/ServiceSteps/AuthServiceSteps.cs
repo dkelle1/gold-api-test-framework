@@ -5,7 +5,6 @@ using ApiTestFramework.Core.Assertions;
 using ApiTestFramework.Core.Client;
 using ApiTestFramework.Core.Constants;
 using ApiTestFramework.Core.DI;
-using ApiTestFramework.Steps.Auth;
 using ApiTestFramework.Steps.DataGenerators;
 using RestSharp;
 using Serilog;
@@ -34,6 +33,23 @@ public class AuthServiceSteps
     public async Task<AuthResponse> RegisterUserAsync()
     {
         var request = AuthDataGenerator.GenerateRegisterRequest();
+        return await RegisterUserAsync(request);
+    }
+
+    /// <summary>
+    /// Registers a new random user with the given <paramref name="role"/> and returns the
+    /// auth response. Use the returned value to enter a <see cref="ApiTestFramework.Steps.Auth.UserScope"/>
+    /// synchronously in the calling test method so the token is set in the correct
+    /// <see cref="System.Threading.AsyncLocal{T}"/> execution context:
+    /// <code>
+    /// var auth = await _authSteps.RegisterUserAsync("Admin");
+    /// await using var scope = UserScope.FromAuthResponse(auth); // sync — correct context
+    /// </code>
+    /// </summary>
+    [AllureStep("Register a new user with role: {role}")]
+    public async Task<AuthResponse> RegisterUserAsync(string role)
+    {
+        var request = AuthDataGenerator.GenerateRegisterRequest(role);
         return await RegisterUserAsync(request);
     }
 
@@ -127,19 +143,4 @@ public class AuthServiceSteps
 
         return response;
     }
-
-    /// <summary>
-    /// Registers a new random user with the given <paramref name="role"/> and returns a
-    /// <see cref="UserScope"/> that overrides the Bearer token for the current async
-    /// execution context until the scope is disposed.
-    ///
-    /// <code>
-    /// await using var admin = await _authSteps.CreateUserScopeAsync(role: "Admin");
-    /// // Requests made here use admin's token automatically.
-    /// admin.AuthResponse.User.Role.Should().Be("Admin");
-    /// </code>
-    /// </summary>
-    [AllureStep("Create user scope (role: {role})")]
-    public Task<UserScope> CreateUserScopeAsync(string role = "User")
-        => UserScope.CreateAsync(this, role);
 }

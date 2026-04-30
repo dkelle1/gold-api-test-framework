@@ -48,11 +48,15 @@ public class MultiUserProductTests : BaseTest
         "are isolated from each other.")]
     public async Task TwoDistinctUsers_BothCanCreateProduct_ReturnsCreated()
     {
-        // Arrange — register two separate users, each in their own scope
-        await using var userA = await _authSteps.CreateUserScopeAsync();
+        // Arrange — register two separate users, each in their own scope.
+        // UserScope.FromAuthResponse is called synchronously in the test method so
+        // TestTokenContext.SetToken runs in this context (not a child continuation).
+        var authA = await _authSteps.RegisterUserAsync("User");
+        await using var userA = UserScope.FromAuthResponse(authA);
         var productA = await _productSteps.CreateProductAsync();
 
-        await using var userB = await _authSteps.CreateUserScopeAsync();
+        var authB = await _authSteps.RegisterUserAsync("User");
+        await using var userB = UserScope.FromAuthResponse(authB);
         var productB = await _productSteps.CreateProductAsync();
 
         // Assert — both products were created under different tokens
@@ -74,9 +78,11 @@ public class MultiUserProductTests : BaseTest
         var baseline = await _productSteps.CreateProductAsync();
         RegisterCleanup(() => _productSteps.DeleteProductAsync(baseline.Id));
 
-        // Act — switch to a different user inside the scope
+        // Act — switch to a different user inside the scope.
+        // Scope is entered synchronously so the token is set in this execution context.
         Product? inScopeProduct;
-        await using (var altUser = await _authSteps.CreateUserScopeAsync())
+        var altAuth = await _authSteps.RegisterUserAsync("User");
+        await using (var altUser = UserScope.FromAuthResponse(altAuth))
         {
             inScopeProduct = await _productSteps.CreateProductAsync();
         }
@@ -159,9 +165,10 @@ public class MultiUserProductTests : BaseTest
     [AllureDescription(
         "A user registered with a custom role receives that role in the AuthResponse, " +
         "verifying that role-based registration works end-to-end.")]
-    public async Task CreateUserScopeAsync_WithCustomRole_ReturnsExpectedRole()
+    public async Task RegisterAndScope_WithCustomRole_ReturnsExpectedRole()
     {
-        await using var adminUser = await _authSteps.CreateUserScopeAsync(role: "Admin");
+        var adminAuth = await _authSteps.RegisterUserAsync("Admin");
+        await using var adminUser = UserScope.FromAuthResponse(adminAuth);
 
         adminUser.AuthResponse.User.Role.Should().Be("Admin");
         adminUser.AuthResponse.Token.AccessToken.Should().NotBeNullOrEmpty();
