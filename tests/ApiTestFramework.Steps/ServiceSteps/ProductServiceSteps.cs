@@ -1,147 +1,68 @@
 using System.Net;
 using Allure.NUnit.Attributes;
 using ApiTestFramework.Clients.ProductService;
-using ApiTestFramework.Core.Assertions;
 using ApiTestFramework.Core.Client;
 using ApiTestFramework.Core.Constants;
-using ApiTestFramework.Core.DI;
 using ApiTestFramework.Steps.DataGenerators;
 using RestSharp;
-using Serilog;
 
 namespace ApiTestFramework.Steps.ServiceSteps;
 
 /// <summary>
 /// Step class for ProductService operations.
-/// Used to prepare test data (e.g., creating products needed by OrderService tests).
+/// Inherits generic CRUD from <see cref="CrudServiceStepsBase{TEntity,TCreate,TUpdate}"/>.
+/// Only service-specific behaviour (random-data overloads) lives here.
 /// </summary>
 public class ProductServiceSteps
+    : CrudServiceStepsBase<Product, CreateProductRequest, UpdateProductRequest>
 {
-    private readonly ApiClient _client;
-    private readonly ILogger _logger;
-
     public ProductServiceSteps()
-    {
-        _client = ContainerProvider.ResolveNamed<ApiClient>("ProductService");
-        _logger = Log.ForContext<ProductServiceSteps>();
-    }
+        : base("ProductService", ProductServiceRoutes.Base, ProductServiceRoutes.ById) { }
 
-    /// <summary>
-    /// Creates a product with random data and returns the created product.
-    /// </summary>
+    // ── Convenience overloads using random data ──────────────────────────────────
+
+    /// <summary>Creates a product with random data and returns it (asserts 201).</summary>
     [AllureStep("Create a product with random data")]
-    public async Task<Product> CreateProductAsync()
-    {
-        var request = ProductDataGenerator.GenerateCreateProductRequest();
-        return await CreateProductAsync(request);
-    }
+    public Task<Product> CreateProductAsync()
+        => CreateAsync(ProductDataGenerator.GenerateCreateProductRequest());
 
-    /// <summary>
-    /// Creates a product from a specific request and returns the created product.
-    /// </summary>
+    /// <summary>Creates a product from a specific request and returns it (asserts 201).</summary>
     [AllureStep("Create a product")]
-    public async Task<Product> CreateProductAsync(CreateProductRequest createRequest)
-    {
-        _logger.Information("Creating product: {Name}", createRequest.Name);
+    public Task<Product> CreateProductAsync(CreateProductRequest request)
+        => CreateAsync(request);
 
-        var response = await _client.SendAsync<Product>(
-            RequestFactory.Post(ProductServiceRoutes.Base, createRequest));
-
-        response.ShouldHaveStatusCode(HttpStatusCode.Created);
-        var product = response.ShouldHaveData();
-
-        _logger.Information("Created product with Id: {Id}", product.Id);
-        return product;
-    }
-
-    /// <summary>
-    /// Gets a product by Id.
-    /// </summary>
+    /// <summary>Gets a product by id — returns raw response (caller asserts status).</summary>
     [AllureStep("Get product by Id: {id}")]
-    public async Task<RestResponse<Product>> GetProductAsync(int id)
-    {
-        var response = await _client.SendAsync<Product>(
-            RequestBuilder.Create()
-                .WithMethod(Method.Get)
-                .WithPath(ProductServiceRoutes.ById)
-                .WithPathSegment("id", id));
+    public Task<RestResponse<Product>> GetProductAsync(int id)
+        => GetAsync(id);
 
-        return response;
-    }
-
-    /// <summary>
-    /// Gets all products.
-    /// </summary>
+    /// <summary>Gets all products — returns raw response.</summary>
     [AllureStep("Get all products")]
-    public async Task<RestResponse<List<Product>>> GetAllProductsAsync()
-    {
-        var response = await _client.SendAsync<List<Product>>(
-            RequestFactory.Get(ProductServiceRoutes.Base));
+    public Task<RestResponse<List<Product>>> GetAllProductsAsync()
+        => GetAllAsync();
 
-        return response;
-    }
-
-    /// <summary>
-    /// Updates a product.
-    /// </summary>
+    /// <summary>Updates a product — returns raw response.</summary>
     [AllureStep("Update product with Id: {id}")]
-    public async Task<RestResponse<Product>> UpdateProductAsync(int id, UpdateProductRequest updateRequest)
-    {
-        var response = await _client.SendAsync<Product>(
-            RequestBuilder.Create()
-                .WithMethod(Method.Put)
-                .WithPath(ProductServiceRoutes.ById)
-                .WithPathSegment("id", id)
-                .WithBody(updateRequest));
+    public Task<RestResponse<Product>> UpdateProductAsync(int id, UpdateProductRequest request)
+        => UpdateAsync(id, request);
 
-        return response;
-    }
-
-    /// <summary>
-    /// Deletes a product.
-    /// </summary>
+    /// <summary>Deletes a product — returns raw response.</summary>
     [AllureStep("Delete product with Id: {id}")]
-    public async Task<RestResponse> DeleteProductAsync(int id)
-    {
-        var response = await _client.SendAsync(
-            RequestBuilder.Create()
-                .WithMethod(Method.Delete)
-                .WithPath(ProductServiceRoutes.ById)
-                .WithPathSegment("id", id));
+    public Task<RestResponse> DeleteProductAsync(int id)
+        => DeleteAsync(id);
 
-        return response;
-    }
+    // ── Negative-path helpers ────────────────────────────────────────────────────
 
-    // ── Negative-path helpers (raw RestResponse for status-code assertions) ─────
-
-    /// <summary>
-    /// Attempts to create a product and returns the raw response.
-    /// Use for negative test scenarios (validation errors, auth failures).
-    /// </summary>
     [AllureStep("Attempt to create a product (raw response)")]
-    public async Task<RestResponse<Product>> TryCreateProductAsync(CreateProductRequest createRequest)
-        => await _client.SendAsync<Product>(RequestFactory.Post(ProductServiceRoutes.Base, createRequest));
+    public Task<RestResponse<Product>> TryCreateProductAsync(CreateProductRequest request)
+        => TryCreateAsync(request);
 
-    /// <summary>
-    /// Attempts to update a product and returns the raw response.
-    /// </summary>
     [AllureStep("Attempt to update product with Id: {id} (raw response)")]
-    public async Task<RestResponse<Product>> TryUpdateProductAsync(int id, UpdateProductRequest updateRequest)
-        => await _client.SendAsync<Product>(
-            RequestBuilder.Create()
-                .WithMethod(Method.Put)
-                .WithPath(ProductServiceRoutes.ById)
-                .WithPathSegment("id", id)
-                .WithBody(updateRequest));
+    public Task<RestResponse<Product>> TryUpdateProductAsync(int id, UpdateProductRequest request)
+        => TryUpdateAsync(id, request);
 
-    /// <summary>
-    /// Attempts to delete a product and returns the raw response.
-    /// </summary>
     [AllureStep("Attempt to delete product with Id: {id} (raw response)")]
-    public async Task<RestResponse> TryDeleteProductAsync(int id)
-        => await _client.SendAsync(
-            RequestBuilder.Create()
-                .WithMethod(Method.Delete)
-                .WithPath(ProductServiceRoutes.ById)
-                .WithPathSegment("id", id));
+    public Task<RestResponse> TryDeleteProductAsync(int id)
+        => TryDeleteAsync(id);
 }
+

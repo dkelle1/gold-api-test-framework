@@ -9,6 +9,8 @@ namespace ApiTestFramework.Core.Client;
 /// Generic API client wrapping RestSharp. Each service gets its own instance
 /// configured with a base URL. Provides typed and untyped Execute methods.
 /// Every request/response is automatically attached to the current Allure step.
+/// Transient failures are retried up to <see cref="RetryCount"/> times with
+/// exponential back-off (200 ms × 2^attempt).
 /// </summary>
 public class ApiClient : IDisposable
 {
@@ -16,6 +18,12 @@ public class ApiClient : IDisposable
     private readonly string _baseUrl;
     private readonly string _serviceName;
     private readonly ILogger _logger;
+
+    /// <summary>
+    /// Number of retry attempts on transient HTTP errors (5xx, timeout).
+    /// Defaults to 0 (no retries). Set via <c>TestConfiguration.RetryCount</c>.
+    /// </summary>
+    public int RetryCount { get; set; } = 0;
 
     public ApiClient(string baseUrl, string serviceName)
     {
@@ -43,7 +51,21 @@ public class ApiClient : IDisposable
 
         AllureRequestLogger.AttachRequest(request, _baseUrl, _serviceName);
 
-        var response = await _client.ExecuteAsync(request);
+        RestResponse response = null!;
+        for (int attempt = 0; attempt <= RetryCount; attempt++)
+        {
+            if (attempt > 0)
+            {
+                var delay = TimeSpan.FromMilliseconds(200 * Math.Pow(2, attempt - 1));
+                _logger.Warning("[{Service}] Retry {Attempt}/{Max} after {Delay}ms (status: {Status})",
+                    _serviceName, attempt, RetryCount, delay.TotalMilliseconds, (int)response.StatusCode);
+                await Task.Delay(delay);
+            }
+
+            response = await _client.ExecuteAsync(request);
+
+            if (!IsTransient(response)) break;
+        }
 
         _logger.Information("[{Service}] Response: {StatusCode} ({Length} bytes)",
             _serviceName, (int)response.StatusCode, response.Content?.Length ?? 0);
@@ -64,7 +86,21 @@ public class ApiClient : IDisposable
 
         AllureRequestLogger.AttachRequest(request, _baseUrl, _serviceName);
 
-        var response = await _client.ExecuteAsync<T>(request);
+        RestResponse<T> response = null!;
+        for (int attempt = 0; attempt <= RetryCount; attempt++)
+        {
+            if (attempt > 0)
+            {
+                var delay = TimeSpan.FromMilliseconds(200 * Math.Pow(2, attempt - 1));
+                _logger.Warning("[{Service}] Retry {Attempt}/{Max} after {Delay}ms (status: {Status})",
+                    _serviceName, attempt, RetryCount, delay.TotalMilliseconds, (int)response.StatusCode);
+                await Task.Delay(delay);
+            }
+
+            response = await _client.ExecuteAsync<T>(request);
+
+            if (!IsTransient(response)) break;
+        }
 
         _logger.Information("[{Service}] Response: {StatusCode} ({Length} bytes)",
             _serviceName, (int)response.StatusCode, response.Content?.Length ?? 0);
@@ -93,15 +129,37 @@ public class ApiClient : IDisposable
     }
 
     /// <summary>
-    /// Auto-injects a Bearer token from <see cref="TokenProvider"/> unless the request
-    /// already carries an Authorization header (explicit override, e.g. in negative auth tests).
+    /// Returns true for responses that are worth retrying (server errors or network failures).
+    /// 4xx responses are not retried — they represent valid API behaviour.
+    /// </summary>
+    private static bool IsTransient(RestResponseBase response)
+        => response.ResponseStatus == ResponseStatus.TimedOut
+           || response.ResponseStatus == ResponseStatus.Error
+           || (int)response.StatusCode >= 500;
+
+    /// <summary>
+    /// Auto-injects a Bearer token unless the request already carries an explicit
+    /// Authorization header (negative auth tests set an empty string to suppress injection).
+    /// Priority: per-test <see cref="TestTokenContext"/> → global <see cref="TokenProvider"/>.
     /// </summary>
     private void InjectBearerToken(RestRequest request)
     {
-        if (TokenProvider.HasToken &&
-            !request.Parameters.Any(p =>
-                p.Type == ParameterType.HttpHeader &&
-                string.Equals(p.Name, "Authorization", StringComparison.OrdinalIgnoreCase)))
+        // Skip injection if the caller explicitly set an Authorization header.
+        bool hasExplicitHeader = request.Parameters.Any(p =>
+            p.Type == ParameterType.HttpHeader &&
+            string.Equals(p.Name, "Authorization", StringComparison.OrdinalIgnoreCase));
+
+        if (hasExplicitHeader) return;
+
+        // 1. Per-test token (AsyncLocal — parallel-safe, per-user)
+        if (TestTokenContext.HasToken)
+        {
+            request.AddHeader("Authorization", $"Bearer {TestTokenContext.Token}");
+            return;
+        }
+
+        // 2. Global fallback token (backwards-compatible with GlobalSetup single-token approach)
+        if (TokenProvider.HasToken)
         {
             request.AddHeader("Authorization", $"Bearer {TokenProvider.Token}");
         }

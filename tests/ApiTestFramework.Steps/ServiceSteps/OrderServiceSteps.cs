@@ -4,158 +4,82 @@ using ApiTestFramework.Clients.OrderService;
 using ApiTestFramework.Core.Assertions;
 using ApiTestFramework.Core.Client;
 using ApiTestFramework.Core.Constants;
-using ApiTestFramework.Core.DI;
 using ApiTestFramework.Steps.DataGenerators;
 using RestSharp;
-using Serilog;
 
 namespace ApiTestFramework.Steps.ServiceSteps;
 
 /// <summary>
 /// Step class for OrderService operations.
-/// Depends on ProductServiceSteps for creating required products.
+/// Inherits generic CRUD from <see cref="CrudServiceStepsBase{TEntity,TCreate,TUpdate}"/>.
+/// Adds service-specific convenience methods and cross-service setup helpers.
 /// </summary>
 public class OrderServiceSteps
+    : CrudServiceStepsBase<Order, CreateOrderRequest, UpdateOrderRequest>
 {
-    private readonly ApiClient _client;
     private readonly ProductServiceSteps _productSteps;
-    private readonly ILogger _logger;
 
     public OrderServiceSteps()
+        : base("OrderService", OrderServiceRoutes.Base, OrderServiceRoutes.ById)
     {
-        _client = ContainerProvider.ResolveNamed<ApiClient>("OrderService");
         _productSteps = new ProductServiceSteps();
-        _logger = Log.ForContext<OrderServiceSteps>();
     }
 
+    // ── Cross-service setup ──────────────────────────────────────────────────────
+
     /// <summary>
-    /// Creates an order with a newly created product (full setup).
-    /// This is the main "prepare" method for tests that need an existing order.
+    /// Creates an order backed by a freshly created product (full setup for tests
+    /// that need an existing order without caring about specific product data).
     /// </summary>
     [AllureStep("Create order with new product (full setup)")]
     public async Task<(Order Order, int ProductId)> CreateOrderWithProductAsync()
     {
-        // Step 1: Create a product first (dependency)
         var product = await _productSteps.CreateProductAsync();
-
-        // Step 2: Create order for that product
         var createRequest = OrderDataGenerator.GenerateCreateOrderRequest(product.Id);
-        var order = await CreateOrderAsync(createRequest);
-
+        var order = await CreateAsync(createRequest);
         return (order, product.Id);
     }
 
-    /// <summary>
-    /// Creates an order from a specific request.
-    /// </summary>
+    // ── Named convenience wrappers (keep existing call-sites unchanged) ──────────
+
     [AllureStep("Create an order")]
-    public async Task<Order> CreateOrderAsync(CreateOrderRequest createRequest)
-    {
-        _logger.Information("Creating order for ProductId: {ProductId}, Customer: {Customer}",
-            createRequest.ProductId, createRequest.CustomerName);
+    public Task<Order> CreateOrderAsync(CreateOrderRequest request)
+        => CreateAsync(request);
 
-        var response = await _client.SendAsync<Order>(
-            RequestFactory.Post(OrderServiceRoutes.Base, createRequest));
-
-        response.ShouldHaveStatusCode(HttpStatusCode.Created);
-        var order = response.ShouldHaveData();
-
-        _logger.Information("Created order with Id: {Id}", order.Id);
-        return order;
-    }
-
-    /// <summary>
-    /// Gets an order by Id.
-    /// </summary>
     [AllureStep("Get order by Id: {id}")]
-    public async Task<RestResponse<Order>> GetOrderAsync(int id)
-    {
-        var response = await _client.SendAsync<Order>(
-            RequestBuilder.Create()
-                .WithMethod(Method.Get)
-                .WithPath(OrderServiceRoutes.ById)
-                .WithPathSegment("id", id));
+    public Task<RestResponse<Order>> GetOrderAsync(int id)
+        => GetAsync(id);
 
-        return response;
-    }
-
-    /// <summary>
-    /// Gets all orders.
-    /// </summary>
     [AllureStep("Get all orders")]
-    public async Task<RestResponse<List<Order>>> GetAllOrdersAsync()
-    {
-        var response = await _client.SendAsync<List<Order>>(
-            RequestFactory.Get(OrderServiceRoutes.Base));
+    public Task<RestResponse<List<Order>>> GetAllOrdersAsync()
+        => GetAllAsync();
 
-        return response;
-    }
-
-    /// <summary>
-    /// Updates an order.
-    /// </summary>
     [AllureStep("Update order with Id: {id}")]
-    public async Task<RestResponse<Order>> UpdateOrderAsync(int id, UpdateOrderRequest updateRequest)
-    {
-        var response = await _client.SendAsync<Order>(
-            RequestBuilder.Create()
-                .WithMethod(Method.Put)
-                .WithPath(OrderServiceRoutes.ById)
-                .WithPathSegment("id", id)
-                .WithBody(updateRequest));
+    public Task<RestResponse<Order>> UpdateOrderAsync(int id, UpdateOrderRequest request)
+        => UpdateAsync(id, request);
 
-        return response;
-    }
-
-    /// <summary>
-    /// Deletes an order.
-    /// </summary>
     [AllureStep("Delete order with Id: {id}")]
-    public async Task<RestResponse> DeleteOrderAsync(int id)
-    {
-        var response = await _client.SendAsync(
-            RequestBuilder.Create()
-                .WithMethod(Method.Delete)
-                .WithPath(OrderServiceRoutes.ById)
-                .WithPathSegment("id", id));
+    public Task<RestResponse> DeleteOrderAsync(int id)
+        => DeleteAsync(id);
 
-        return response;
-    }
+    // ── Extra route: orders by customer email ────────────────────────────────────
 
-    /// <summary>
-    /// Gets orders by customer email.
-    /// </summary>
     [AllureStep("Get orders by customer email: {email}")]
-    public async Task<RestResponse<List<Order>>> GetOrdersByCustomerEmailAsync(string email)
-    {
-        var response = await _client.SendAsync<List<Order>>(
+    public Task<RestResponse<List<Order>>> GetOrdersByCustomerEmailAsync(string email)
+        => Client.SendAsync<List<Order>>(
             RequestBuilder.Create()
                 .WithMethod(Method.Get)
                 .WithPath(OrderServiceRoutes.ByCustomerEmail)
                 .WithPathSegment("email", email));
 
-        return response;
-    }
+    // ── Negative-path helpers ────────────────────────────────────────────────────
 
-    // ── Negative-path helpers (raw RestResponse for status-code assertions) ─────
-
-    /// <summary>
-    /// Attempts to create an order and returns the raw response.
-    /// Use for negative test scenarios (invalid product, validation errors).
-    /// </summary>
     [AllureStep("Attempt to create an order (raw response)")]
-    public async Task<RestResponse<Order>> TryCreateOrderAsync(CreateOrderRequest createRequest)
-        => await _client.SendAsync<Order>(RequestFactory.Post(OrderServiceRoutes.Base, createRequest));
+    public Task<RestResponse<Order>> TryCreateOrderAsync(CreateOrderRequest request)
+        => TryCreateAsync(request);
 
-    /// <summary>
-    /// Attempts to update an order and returns the raw response.
-    /// </summary>
     [AllureStep("Attempt to update order with Id: {id} (raw response)")]
-    public async Task<RestResponse<Order>> TryUpdateOrderAsync(int id, UpdateOrderRequest updateRequest)
-        => await _client.SendAsync<Order>(
-            RequestBuilder.Create()
-                .WithMethod(Method.Put)
-                .WithPath(OrderServiceRoutes.ById)
-                .WithPathSegment("id", id)
-                .WithBody(updateRequest));
+    public Task<RestResponse<Order>> TryUpdateOrderAsync(int id, UpdateOrderRequest request)
+        => TryUpdateAsync(id, request);
 }
+
