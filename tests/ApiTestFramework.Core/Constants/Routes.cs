@@ -29,3 +29,12 @@ public static class AuthServiceRoutes
     public const string Register = "/api/auth/register";
     public const string Login = "/api/auth/login";
 }
+
+/// <summary>
+/// API route constants for ImportService.
+/// </summary>
+public static class ImportServiceRoutes
+{
+    public const string ProductCsvImport = "/api/imports/products/csv";
+    public const string StatusByBatchId = "/api/imports/{batchId}/status";
+}
