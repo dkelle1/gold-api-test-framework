@@ -11,6 +11,21 @@ Versions map to merged PRs on the `main` branch.
 
 > Changes on open branches not yet merged to `main`.
 
+### feat/allure-onetimesetup-guard (current PR)
+
+#### Added
+- Added framework self-tests fixture `TokenIsolationFrameworkTests` under `tests/ApiTestFramework.Tests/Framework`.
+- Added Jenkins PR runbook for REST API job create/trigger flow in `scripts/jenkins-pr-job-runbook.md`.
+- Added repository workflow skill in `.github/skills/pr-jenkins-workflow/SKILL.md`.
+
+#### Changed
+- Extracted token-isolation framework tests from ProductService test suite into a dedicated framework suite.
+- Updated Copilot repository instructions to reference the Jenkins PR runbook and required delivery flow.
+
+#### Removed
+- Removed `MultiUserProductTests` from `tests/ApiTestFramework.Tests/ProductService` after extraction.
+- Removed temporary repository artifact `jenkins-pr8-config.xml` (Jenkins job config export).
+
 ### feat/openapi-steps-generator (PR #5)
 - **Added** `StepsGenerator` in `ApiTestFramework.OpenApi` — generates a full `*ServiceSteps.cs` from parsed `EndpointDefinition` objects.
 - **Added** `ApiTestFramework.OpenApi.Cli` project (`generate-steps.exe`) — .NET 8 console app wrapping the generator with a CLI interface (`--swagger`, `--service`, `--dto`, `--ns`, `--dto-ns`, `--out`).
@@ -77,3 +92,4 @@ Versions map to merged PRs on the `main` branch.
 - `ApiTestFramework.OpenApi` — `OpenApiSpecLoader`, `EndpointDefinition` model, `TestCaseScaffolder` (stub generator).
 - `Jenkinsfile` declarative pipeline (checkout → build → docker-compose up → test → publish → teardown).
 - `COMPOSE_PROJECT_NAME=api-test-${BUILD_NUMBER}` for parallel-safe CI builds.
+
