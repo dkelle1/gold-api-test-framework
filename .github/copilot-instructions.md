@@ -181,3 +181,19 @@ Use this to bootstrap tests for new endpoints by reading the swagger.json of a s
 - Every step is annotated with `[AllureStep]` for Allure report hierarchy
 - Repository pattern: interface + SQL/Redis implementation; Redis failures are silently swallowed
 - Migrations: use EF Core `Database.EnsureCreated()` for dev/test; add migration commands for production
+
+---
+
+## Team Delivery Workflow
+
+Use the workflow skill in `.github/skills/pr-jenkins-workflow/SKILL.md` as the default process.
+Use `scripts/jenkins-pr-job-runbook.md` for Jenkins REST API job create/trigger details.
+
+Required sequence:
+
+1. Implement requested changes.
+2. Open or update GitHub PR.
+3. Run Jenkins PR validation job.
+4. Document what changed and test outcome.
+5. Update changelog.
+6. Leave final merge as a manual user action.
