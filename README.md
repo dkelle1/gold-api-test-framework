@@ -10,10 +10,12 @@ Complete solution with three .NET 8 microservices and a generic API test framewo
 - **OrderService** (`:5200`) — CRUD for orders, depends on ProductService for product validation (requires JWT authorization)
 
 ### Test Framework
-- **ApiTestFramework.Core** — Generic request builder, API client, Autofac DI, Allure integration, FluentAssertions extensions, JWT token management
+- **ApiTestFramework.Core** — Generic request builder, API client, Autofac DI, Allure integration, FluentAssertions extensions, JWT token management, per-test token context (`TestTokenContext` / `TokenScope`)
 - **ApiTestFramework.Clients** — NSwag-generated DTOs and placeholder DTOs
-- **ApiTestFramework.Steps** — Step classes per service (Bogus data generators, Allure step annotations)
-- **ApiTestFramework.Tests** — NUnit test fixtures (22 tests)
+- **ApiTestFramework.Steps** — Step classes per service (Bogus data generators, Allure step annotations), `UserScope` for per-test user isolation
+- **ApiTestFramework.Tests** — NUnit test fixtures (28 tests across 4 fixtures)
+- **ApiTestFramework.OpenApi** — OpenAPI spec loader, test-case scaffolder, and `StepsGenerator` for code generation
+- **ApiTestFramework.OpenApi.Cli** — CLI wrapper (`generate-steps.exe`) that drives `StepsGenerator` from the command line
 
 ## Tech Stack
 | Component | Technology |
@@ -112,11 +114,14 @@ allure serve TestResults/allure-results
 │   ├── ProductService/          # Product microservice (port 5100, JWT protected)
 │   └── OrderService/            # Order microservice (port 5200, JWT protected, depends on ProductService)
 ├── tests/
-│   ├── ApiTestFramework.Core/   # Core framework: RequestBuilder, ApiClient, DI, Assertions, TokenProvider, ConfigurationProvider
+│   ├── ApiTestFramework.Core/   # Core framework: RequestBuilder, ApiClient, DI, Assertions, TokenProvider, ConfigurationProvider, TestTokenContext, TokenScope
 │   ├── ApiTestFramework.Clients/# NSwag configs + placeholder DTOs (Auth, Product, Order)
-│   ├── ApiTestFramework.Steps/  # Step classes + Bogus data generators
-│   └── ApiTestFramework.Tests/  # NUnit test fixtures (Auth, Product, Order — 22 tests)
+│   ├── ApiTestFramework.Steps/  # Step classes + Bogus data generators + UserScope (per-test user isolation)
+│   ├── ApiTestFramework.Tests/  # NUnit test fixtures (Auth, Product, Order — 28 tests)
+│   ├── ApiTestFramework.OpenApi/# OpenAPI loader, TestCaseScaffolder, StepsGenerator
+│   └── ApiTestFramework.OpenApi.Cli/ # CLI (generate-steps.exe) to generate *ServiceSteps.cs from swagger
 ├── docker-compose.yml           # Full stack: microservices + SQL Server + Redis + Consul
+├── generate-steps.bat           # Convenience script — regenerates all service step files from swagger
 ├── Jenkinsfile                  # CI/CD pipeline
 └── ApiTestFramework.sln
 ```
@@ -220,6 +225,65 @@ var product = await _productSteps.CreateProductAsync();
 var (order, productId) = await _orderSteps.CreateOrderWithProductAsync();
 ```
 
+### Per-Test Multi-User Token Isolation
+
+Every test runs under the global token set in `GlobalSetup`. When a test needs a different user (e.g. to verify role-based access or token ownership), use `UserScope` to register a fresh user and scope its token to the current test without affecting other tests running in parallel.
+
+`UserScope` is backed by `TestTokenContext` (`AsyncLocal<string?>`). Because `AsyncLocal<T>` propagates changes **down** into child continuations but **not back up** to the caller, the two-step pattern is required:
+
+```csharp
+// Step 1 — async: register the user (runs in a child async context)
+var auth = await _authSteps.RegisterUserAsync("Admin");
+
+// Step 2 — sync: enter the scope IN THIS METHOD'S execution context
+//   UserScope.FromAuthResponse is synchronous, so TestTokenContext.SetToken()
+//   runs here and is visible to all subsequent awaits in this test.
+await using var scope = UserScope.FromAuthResponse(auth);
+
+// All requests inside the scope use auth.Token.AccessToken
+var product = await _productSteps.CreateProductAsync();
+
+// Scope is restored to previous token automatically on dispose
+```
+
+> **Why not `await using var scope = await CreateUserScopeAsync()`?**
+> Calling `TokenScope.Use()` (which sets `TestTokenContext`) inside an async helper after an `await` runs in a child execution context. `AsyncLocal<T>` changes in a child context don't flow back to the parent, so the token would never be set in the test method's context. The two-step pattern avoids this.
+
+You can also override the token directly without creating a new user:
+```csharp
+// Scopes an existing token for the duration of the using block
+using var _ = UseToken("eyJhbGci...");
+```
+
+### OpenAPI → ServiceSteps Code Generator
+
+The framework can generate complete `*ServiceSteps.cs` files from any OpenAPI/swagger.json spec:
+
+```bat
+:: Regenerate all three service step files at once
+generate-steps.bat
+
+:: Or generate a single service
+dotnet run --project tests/ApiTestFramework.OpenApi.Cli -- ^
+  --swagger tests/ApiTestFramework.Clients/swagger/order-swagger.json ^
+  --service Order --dto Order ^
+  --ns ApiTestFramework.Steps.ServiceSteps.Generated ^
+  --dto-ns ApiTestFramework.Clients.OrderService ^
+  --out tests/ApiTestFramework.Steps/ServiceSteps/Generated/OrderServiceSteps.g.cs
+```
+
+**What the generator produces per endpoint:**
+- `GET /collection` → `List<T>` happy-path method asserting `200 OK`
+- `GET /resource/{id}` → `T` method
+- `POST` → `T` method asserting `201 Created` + `TryCreateAsync` raw-response overload
+- `PUT` / `DELETE` → typed method + `Try*Async` overload for negative-test scenarios
+- `[AllureStep]` annotation on every method
+- Constructor resolves `ApiClient` via `ContainerProvider`
+
+Generated files land in `tests/ApiTestFramework.Steps/ServiceSteps/Generated/` and are committed alongside hand-written steps as a reference/bootstrap. They can be used directly or promoted to hand-written steps by copying to the `ServiceSteps/` folder and customising.
+
+The offline swagger specs are in `tests/ApiTestFramework.Clients/swagger/`. To refresh them from live services, run `scripts/refresh-swagger.ps1` (services must be running).
+
 ### DTO Validation
 ```csharp
 // Full DTO comparison
@@ -236,8 +300,10 @@ response.ShouldMatchDtoExcluding(expectedProduct,
 | Suite | Tests | Description |
 |-------|-------|-------------|
 | AuthService | 7 | Register, login, duplicate user, wrong password, unauthorized access |
-| ProductService | 7 | Create, get, get all, update, delete (valid & invalid scenarios) |
+| ProductService (CRUD) | 7 | Create, get, get all, update, delete (valid & invalid scenarios) |
+| ProductService (Multi-user) | 6 | Per-test user isolation, token scoping, scope restore, `UseToken` override |
 | OrderService | 8 | Create (valid & invalid product), get, get all, update, delete, full lifecycle |
+| **Total** | **28** | |
 
 ## CI/CD
 
