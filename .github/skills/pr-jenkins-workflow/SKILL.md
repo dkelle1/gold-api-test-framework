@@ -24,6 +24,18 @@ Use this workflow as the default delivery process for this repository unless the
 - After documentation/changelog updates: list updated docs and entries.
 - Before handoff: confirm ready for manual merge.
 
+## Mandatory PR description
+
+Always prepare and add a structured PR description (for new PRs and updates) with these sections:
+
+1. `Summary` — what changed and why.
+2. `Scope` — files/components affected.
+3. `Behavior/Impact` — expected runtime or test behavior changes.
+4. `Validation` — local checks + Jenkins build result with link.
+5. `Risks/Rollback` — known risks and fallback plan.
+
+Use concise bullets and include direct links to PR and Jenkins build when available.
+
 ## Notes
 
 - Do not perform merge unless user explicitly requests it.

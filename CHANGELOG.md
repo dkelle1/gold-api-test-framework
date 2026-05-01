@@ -15,3 +15,4 @@ All notable changes to this repository are documented in this file.
 
 ### Removed
 - Removed `MultiUserProductTests` from `tests/ApiTestFramework.Tests/ProductService` after extraction.
+- Removed temporary repository artifact `jenkins-pr8-config.xml` (Jenkins job config export).
