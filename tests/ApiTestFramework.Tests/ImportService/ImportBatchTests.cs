@@ -70,7 +70,7 @@ public class ImportBatchTests : BaseTest
     [AllureDescription("Verify that unknown batch id returns 404")]
     public async Task GetImportStatus_WithUnknownBatchId_ReturnsNotFound()
     {
-        var response = await _steps.GetImportStatusAsync(Guid.NewGuid());
+        var response = await _steps.GetImportStatusAsync(Guid.NewGuid().ToString());
 
         response.ShouldHaveStatusCode(HttpStatusCode.NotFound);
     }

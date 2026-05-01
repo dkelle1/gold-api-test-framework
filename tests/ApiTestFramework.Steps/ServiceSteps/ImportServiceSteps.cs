@@ -40,7 +40,7 @@ public class ImportServiceSteps
     }
 
     [AllureStep("Get import status for batch: {batchId}")]
-    public async Task<RestResponse<ImportStatusResponse>> GetImportStatusAsync(Guid batchId)
+    public async Task<RestResponse<ImportStatusResponse>> GetImportStatusAsync(string batchId)
     {
         return await _client.SendAsync<ImportStatusResponse>(
             RequestBuilder.Create()
@@ -50,7 +50,7 @@ public class ImportServiceSteps
     }
 
     [AllureStep("Wait for import completion for batch: {batchId}")]
-    public async Task<ImportStatusResponse> WaitForImportCompletionAsync(Guid batchId, TimeSpan? timeout = null)
+    public async Task<ImportStatusResponse> WaitForImportCompletionAsync(string batchId, TimeSpan? timeout = null)
     {
         var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(90);
         var sw = Stopwatch.StartNew();
