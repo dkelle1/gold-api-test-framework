@@ -4,7 +4,6 @@ services:
 
   consul:
     image: hashicorp/consul:1.18
-    container_name: consul
     ports:
       - "8500:8500"   # HTTP API + UI
       - "8600:8600/udp" # DNS
@@ -21,7 +20,6 @@ services:
   # the expected exit-0 as a failure; healthcheck signals when seeding is done.
   consul-init:
     image: curlimages/curl:8.7.1
-    container_name: consul-init
     depends_on:
       consul:
         condition: service_healthy
@@ -39,7 +37,6 @@ services:
 
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: sqlserver
     environment:
       SA_PASSWORD: "ApiTest_Sa@2024"
       ACCEPT_EULA: "Y"
@@ -57,7 +54,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: redis
     ports:
       - "6379:6379"
     volumes:
@@ -74,7 +70,6 @@ services:
     build:
       context: .
       dockerfile: src/AuthService/Dockerfile
-    container_name: auth-service
     ports:
       - "5300:8080"
     environment:
@@ -104,7 +99,6 @@ services:
     build:
       context: .
       dockerfile: src/ProductService/Dockerfile
-    container_name: product-service
     ports:
       - "5100:8080"
     environment:
@@ -133,7 +127,6 @@ services:
     build:
       context: .
       dockerfile: src/OrderService/Dockerfile
-    container_name: order-service
     ports:
       - "5200:8080"
     environment:
@@ -165,7 +158,6 @@ services:
     build:
       context: .
       dockerfile: src/ImportService/Dockerfile
-    container_name: import-service
     ports:
       - "5400:8080"
     environment:
