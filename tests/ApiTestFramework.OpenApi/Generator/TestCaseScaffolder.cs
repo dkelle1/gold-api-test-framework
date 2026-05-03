@@ -41,55 +41,7 @@ public static class TestCaseScaffolder
 
         foreach (var endpoint in endpoints)
         {
-            // Happy path — first 2xx response
-            var successCode = endpoint.Responses.Keys.FirstOrDefault(k => k is >= 200 and < 300);
-            if (successCode > 0)
-            {
-                cases.Add(new TestCaseDefinition(
-                    TestName: BuildTestName(endpoint, TestScenario.HappyPath),
-                    ServiceName: serviceName,
-                    Endpoint: endpoint,
-                    Scenario: TestScenario.HappyPath,
-                    ExpectedStatusCode: successCode,
-                    Description: $"{endpoint.Method} {endpoint.Path} — returns {successCode}"));
-            }
-
-            // Unauthorized — endpoint requires auth
-            if (endpoint.RequiresAuth)
-            {
-                cases.Add(new TestCaseDefinition(
-                    TestName: BuildTestName(endpoint, TestScenario.Unauthorized),
-                    ServiceName: serviceName,
-                    Endpoint: endpoint,
-                    Scenario: TestScenario.Unauthorized,
-                    ExpectedStatusCode: 401,
-                    Description: $"{endpoint.Method} {endpoint.Path} without token — returns 401"));
-            }
-
-            // Not Found — endpoints with path parameter {id}
-            if (endpoint.Path.Contains("{id", StringComparison.OrdinalIgnoreCase)
-                && endpoint.Method != "POST")
-            {
-                cases.Add(new TestCaseDefinition(
-                    TestName: BuildTestName(endpoint, TestScenario.NotFound),
-                    ServiceName: serviceName,
-                    Endpoint: endpoint,
-                    Scenario: TestScenario.NotFound,
-                    ExpectedStatusCode: 404,
-                    Description: $"{endpoint.Method} {endpoint.Path} with invalid id — returns 404"));
-            }
-
-            // Bad Request — POST/PUT with request body
-            if (endpoint.Method is "POST" or "PUT" && endpoint.RequestBodySchema is not null)
-            {
-                cases.Add(new TestCaseDefinition(
-                    TestName: BuildTestName(endpoint, TestScenario.BadRequest),
-                    ServiceName: serviceName,
-                    Endpoint: endpoint,
-                    Scenario: TestScenario.BadRequest,
-                    ExpectedStatusCode: 400,
-                    Description: $"{endpoint.Method} {endpoint.Path} with invalid body — returns 400"));
-            }
+            cases.AddRange(BuildVerbSpecificCases(endpoint, serviceName));
         }
 
         return cases;
@@ -113,6 +65,7 @@ public static class TestCaseScaffolder
         sb.AppendLine("// DO NOT EDIT — regenerate via TestCaseScaffolder");
         sb.AppendLine();
         sb.AppendLine("using System.Net;");
+        sb.AppendLine("using System.Threading.Tasks;");
         sb.AppendLine("using NUnit.Framework;");
         sb.AppendLine("using ApiTestFramework.Core.Base;");
         sb.AppendLine("using ApiTestFramework.Core.Assertions;");
@@ -123,20 +76,28 @@ public static class TestCaseScaffolder
         sb.AppendLine($"public class {serviceName}GeneratedTests : BaseTest");
         sb.AppendLine("{");
 
-        foreach (var tc in testCases)
+        foreach (var group in testCases.GroupBy(tc => tc.Endpoint.Method))
         {
-            sb.AppendLine($"    [Test]");
-            sb.AppendLine($"    [Description(\"{tc.Description}\")]");
-            sb.AppendLine($"    [Category(\"{tc.Scenario}\")]");
-            sb.AppendLine($"    public async Task {tc.TestName}()");
-            sb.AppendLine("    {");
-            sb.AppendLine($"        // Endpoint : {tc.Endpoint.Method} {tc.Endpoint.Path}");
-            sb.AppendLine($"        // Scenario : {tc.Scenario}");
-            sb.AppendLine($"        // Expected : HTTP {tc.ExpectedStatusCode}");
-            sb.AppendLine("        await Task.CompletedTask;");
-            sb.AppendLine("        Assert.Inconclusive(\"Scaffold only — implement test body.\");");
-            sb.AppendLine("    }");
-            sb.AppendLine();
+            sb.AppendLine($"    // {group.Key} scenarios");
+            foreach (var tc in group)
+            {
+                sb.AppendLine($"    [Test]");
+                sb.AppendLine($"    [Description(\"{tc.Description}\")]");
+                sb.AppendLine($"    [Category(\"{group.Key}\")]");
+                sb.AppendLine($"    [Category(\"{tc.Scenario}\")]");
+                sb.AppendLine($"    public async Task {tc.TestName}()");
+                sb.AppendLine("    {");
+                sb.AppendLine($"        // Endpoint : {tc.Endpoint.Method} {tc.Endpoint.Path}");
+                sb.AppendLine($"        // Scenario : {tc.Scenario}");
+                sb.AppendLine($"        // Expected : HTTP {tc.ExpectedStatusCode}");
+                sb.AppendLine($"        // Arrange : {BuildArrangeHint(tc)}");
+                sb.AppendLine("        // Act     : invoke the endpoint through a step class or ApiClient.");
+                sb.AppendLine($"        // Assert  : response.ShouldHaveStatusCode((HttpStatusCode){tc.ExpectedStatusCode});");
+                sb.AppendLine("        await Task.CompletedTask;");
+                sb.AppendLine("        Assert.Inconclusive(\"Scaffold only — implement test body.\");");
+                sb.AppendLine("    }");
+                sb.AppendLine();
+            }
         }
 
         sb.AppendLine("}");
@@ -156,6 +117,138 @@ public static class TestCaseScaffolder
             _                         => "Unknown"
         };
         return $"{resource}_{scenarioSuffix}";
+    }
+
+    private static IEnumerable<TestCaseDefinition> BuildVerbSpecificCases(EndpointDefinition endpoint, string serviceName)
+    {
+        var cases = new List<TestCaseDefinition>();
+        var successCode = endpoint.Responses.Keys.FirstOrDefault(k => k is >= 200 and < 300);
+
+        if (successCode > 0)
+        {
+            cases.Add(new TestCaseDefinition(
+                TestName: BuildTestName(endpoint, TestScenario.HappyPath),
+                ServiceName: serviceName,
+                Endpoint: endpoint,
+                Scenario: TestScenario.HappyPath,
+                ExpectedStatusCode: successCode,
+                Description: $"{endpoint.Method} {endpoint.Path} happy path — returns {successCode}"));
+        }
+
+        if (endpoint.RequiresAuth && HasResponse(endpoint, 401))
+        {
+            cases.Add(new TestCaseDefinition(
+                TestName: BuildTestName(endpoint, TestScenario.Unauthorized),
+                ServiceName: serviceName,
+                Endpoint: endpoint,
+                Scenario: TestScenario.Unauthorized,
+                ExpectedStatusCode: 401,
+                Description: $"{endpoint.Method} {endpoint.Path} without token — returns 401"));
+        }
+
+        switch (endpoint.Method)
+        {
+            case "GET":
+                AddNotFoundIfApplicable(cases, endpoint, serviceName);
+                AddBadRequestIfApplicable(cases, endpoint, serviceName, requiresBody: false);
+                break;
+
+            case "POST":
+                AddBadRequestIfApplicable(cases, endpoint, serviceName, requiresBody: true);
+                AddConflictIfApplicable(cases, endpoint, serviceName);
+                break;
+
+            case "PUT":
+            case "PATCH":
+                AddNotFoundIfApplicable(cases, endpoint, serviceName);
+                AddBadRequestIfApplicable(cases, endpoint, serviceName, requiresBody: true);
+                AddConflictIfApplicable(cases, endpoint, serviceName);
+                break;
+
+            case "DELETE":
+                AddNotFoundIfApplicable(cases, endpoint, serviceName);
+                break;
+        }
+
+        return cases;
+    }
+
+    private static void AddNotFoundIfApplicable(List<TestCaseDefinition> cases, EndpointDefinition endpoint, string serviceName)
+    {
+        if (!HasResponse(endpoint, 404) || !HasPathParameter(endpoint))
+            return;
+
+        cases.Add(new TestCaseDefinition(
+            TestName: BuildTestName(endpoint, TestScenario.NotFound),
+            ServiceName: serviceName,
+            Endpoint: endpoint,
+            Scenario: TestScenario.NotFound,
+            ExpectedStatusCode: 404,
+            Description: $"{endpoint.Method} {endpoint.Path} with invalid path parameter — returns 404"));
+    }
+
+    private static void AddBadRequestIfApplicable(List<TestCaseDefinition> cases, EndpointDefinition endpoint, string serviceName, bool requiresBody)
+    {
+        if (!HasResponse(endpoint, 400))
+            return;
+
+        if (requiresBody && !endpoint.HasRequestBody)
+            return;
+
+        var reason = requiresBody
+            ? "with invalid request body"
+            : "with invalid input";
+
+        cases.Add(new TestCaseDefinition(
+            TestName: BuildTestName(endpoint, TestScenario.BadRequest),
+            ServiceName: serviceName,
+            Endpoint: endpoint,
+            Scenario: TestScenario.BadRequest,
+            ExpectedStatusCode: 400,
+            Description: $"{endpoint.Method} {endpoint.Path} {reason} — returns 400"));
+    }
+
+    private static void AddConflictIfApplicable(List<TestCaseDefinition> cases, EndpointDefinition endpoint, string serviceName)
+    {
+        if (!HasResponse(endpoint, 409))
+            return;
+
+        cases.Add(new TestCaseDefinition(
+            TestName: BuildTestName(endpoint, TestScenario.Conflict),
+            ServiceName: serviceName,
+            Endpoint: endpoint,
+            Scenario: TestScenario.Conflict,
+            ExpectedStatusCode: 409,
+            Description: $"{endpoint.Method} {endpoint.Path} with duplicate/conflicting state — returns 409"));
+    }
+
+    private static bool HasResponse(EndpointDefinition endpoint, int statusCode)
+        => endpoint.Responses.ContainsKey(statusCode);
+
+    private static bool HasPathParameter(EndpointDefinition endpoint)
+        => endpoint.Parameters.Any(p => p.In == "path");
+
+    private static string BuildArrangeHint(TestCaseDefinition testCase)
+    {
+        return testCase.Scenario switch
+        {
+            TestScenario.HappyPath => testCase.Endpoint.Method switch
+            {
+                "GET" => "create or seed the entity required by the GET route.",
+                "POST" => "build a valid request payload for resource creation.",
+                "PUT" => "create the entity first, then build a valid update payload.",
+                "PATCH" => "create the entity first, then build a valid patch payload.",
+                "DELETE" => "create the entity first so the delete target exists.",
+                _ => "prepare valid test data for the endpoint."
+            },
+            TestScenario.Unauthorized => "clear or override the Authorization header so no valid token is sent.",
+            TestScenario.NotFound => "use a non-existent path identifier.",
+            TestScenario.BadRequest => testCase.Endpoint.HasRequestBody
+                ? "build an invalid request payload that violates validation rules."
+                : "provide invalid query/path input documented as bad request.",
+            TestScenario.Conflict => "prepare an existing resource state that will trigger a conflict.",
+            _ => "prepare endpoint-specific data."
+        };
     }
 
     private static string ToPascalCase(string value)

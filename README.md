@@ -15,8 +15,8 @@ Complete solution with four .NET 8 microservices and a generic API test framewor
 - **ApiTestFramework.Clients** — NSwag-generated DTOs and placeholder DTOs
 - **ApiTestFramework.Steps** — Step classes per service (Bogus data generators, Allure step annotations), `UserScope` for per-test user isolation
 - **ApiTestFramework.Tests** — NUnit test fixtures (31 tests across 5 fixtures)
-- **ApiTestFramework.OpenApi** — OpenAPI spec loader, test-case scaffolder, and `StepsGenerator` for code generation
-- **ApiTestFramework.OpenApi.Cli** — CLI wrapper (`generate-steps.exe`) that drives `StepsGenerator` from the command line
+- **ApiTestFramework.OpenApi** — OpenAPI spec loader, verb-specific test-case scaffolder, and `StepsGenerator` for code generation
+- **ApiTestFramework.OpenApi.Cli** — CLI wrapper (`generate-steps.exe`) that drives step, DTO, and test-stub generation from the command line
 
 ## Tech Stack
 | Component | Technology |
@@ -128,8 +128,42 @@ allure serve TestResults/allure-results
 │   └── ApiTestFramework.OpenApi.Cli/ # CLI (generate-steps.exe) to generate *ServiceSteps.cs from swagger
 ├── docker-compose.yml           # Full stack: microservices + SQL Server + Redis + Consul
 ├── generate-steps.bat           # Convenience script — regenerates all service step files from swagger
+├── generate-tests.bat           # Convenience script — generates verb-specific NUnit scaffold tests from swagger
 ├── Jenkinsfile                  # CI/CD pipeline
 └── ApiTestFramework.sln
+```
+
+## OpenAPI Code Generation
+
+### Generate Steps
+```bash
+generate-steps.bat
+```
+
+### Generate DTOs
+```bash
+dotnet run --project tests/ApiTestFramework.OpenApi.Cli -- --mode dto --swagger tests/ApiTestFramework.Clients/swagger/product-swagger.json --ns ApiTestFramework.Clients.ProductService --out ProductDtos.g.cs
+```
+
+### Generate Verb-Specific Test Scaffolds
+The test scaffolder creates NUnit stubs based on HTTP verb and documented responses in swagger.
+
+Default scenario matrix:
+- `GET`: happy path, `401`, `404`, optional `400` when documented
+- `POST`: happy path, `401`, `400`, `409` when documented
+- `PUT`: happy path, `401`, `404`, `400`, `409` when documented
+- `PATCH`: happy path, `401`, `404`, `400`, `409` when documented
+- `DELETE`: happy path, `401`, `404` when documented
+
+The generator uses the verb-specific matrix only when the corresponding response code exists in the OpenAPI document, so the scaffold stays aligned with the real contract.
+
+```bash
+generate-tests.bat
+```
+
+Single-service example:
+```bash
+dotnet run --project tests/ApiTestFramework.OpenApi.Cli -- --mode tests --swagger tests/ApiTestFramework.Clients/swagger/import-swagger.json --service Import --ns ApiTestFramework.Tests.Generated --out artifacts/generated-tests/ImportGeneratedTests.g.cs
 ```
 
 ## Configuration

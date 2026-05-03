@@ -60,6 +60,7 @@ public static class OpenApiSpecLoader
 
                 var requestBodySchema = ResolveSchemaTypeName(
                     operation.RequestBody?.Content?.FirstOrDefault().Value?.Schema);
+                var hasRequestBody = operation.RequestBody is not null;
 
                 result.Add(new EndpointDefinition(
                     path,
@@ -67,6 +68,7 @@ public static class OpenApiSpecLoader
                     operation.OperationId ?? $"{operationType}_{path.Replace("/", "_").Trim('_')}",
                     operation.Tags?.FirstOrDefault()?.Name,
                     requestBodySchema,
+                    hasRequestBody,
                     parameters,
                     responses,
                     requiresAuth));
