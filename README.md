@@ -146,16 +146,21 @@ dotnet run --project tests/ApiTestFramework.OpenApi.Cli -- --mode dto --swagger 
 ```
 
 ### Generate Verb-Specific Test Scaffolds
-The test scaffolder creates NUnit stubs based on HTTP verb and documented responses in swagger.
+The test scaffolder creates NUnit stubs directly from documented OpenAPI responses and then refines them with HTTP-verb-specific functional hints.
 
-Default scenario matrix:
-- `GET`: happy path, `401`, `404`, optional `400` when documented
-- `POST`: happy path, `401`, `400`, `409` when documented
-- `PUT`: happy path, `401`, `404`, `400`, `409` when documented
-- `PATCH`: happy path, `401`, `404`, `400`, `409` when documented
-- `DELETE`: happy path, `401`, `404` when documented
+Generation rules:
+- every documented status code in swagger becomes its own scaffolded test case
+- the generator derives scenario intent from both HTTP verb and response code, for example `401` as security, `404` as missing resource, `409` as conflicting state, `503` as resilience or availability
+- response schemas from swagger are echoed in the assertion hint so generated tests prompt contract checks, not only status-code checks
+- request bodies are detected for both referenced schemas and inline or multipart definitions, so file-upload endpoints also get negative validation scaffolds
 
-The generator uses the verb-specific matrix only when the corresponding response code exists in the OpenAPI document, so the scaffold stays aligned with the real contract.
+Functional test design guidance baked into the scaffold:
+- success paths use representative valid data and expected business preconditions
+- negative paths target invalid input, missing resources, conflicting state, and unsupported content types when those responses are documented
+- security paths cover missing auth and permission failures when documented
+- resilience paths cover rate limiting and service unavailability when documented
+
+This aligns the scaffold with contract-based API functional testing and common ISTQB-style test design principles: equivalence classes, negative testing, authorization checks, and documented error handling.
 
 ```bash
 generate-tests.bat

@@ -34,6 +34,7 @@ Versions map to merged PRs on the `main` branch.
 - Added API endpoint `POST /api/imports/products/csv` for file upload and `GET /api/imports/{batchId}/status` for polling import progress.
 - Added ImportService DTOs, step class, and API tests (`tests/ApiTestFramework.Tests/ImportService/ImportBatchTests.cs`) including a 1000-row batch scenario.
 - Added verb-specific OpenAPI test scaffolding mode in `ApiTestFramework.OpenApi.Cli` plus `generate-tests.bat` for generating NUnit test stubs per HTTP method and documented response codes.
+- Refined OpenAPI test scaffolding so every documented swagger response code becomes a dedicated generated test stub with contract-aware assertion hints.
 
 #### Changed
 - Updated `docker-compose.yml` to run `import-service` on port `5400` and seed `ImportService` URL into Consul KV.
