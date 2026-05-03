@@ -20,6 +20,8 @@ namespace ApiTestFramework.Tests.ImportService;
 [AllureFeature("Batch Product CSV Import")]
 public class ImportBatchTests : BaseTest
 {
+    // We intentionally use ApiClient directly in this fixture because multipart upload + polling
+    // scenarios are not reliably represented by the generated step class yet.
     private ApiClient _client = null!;
 
     protected override void OnFixtureSetUp()

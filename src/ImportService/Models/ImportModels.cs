@@ -51,6 +51,8 @@ public class ImportCsvProduct
     public static bool TryParse(string csvLine, out ImportCsvProduct? product)
     {
         product = null;
+        // Intentional lightweight parser: does not support RFC 4180 quoted commas.
+        // Example unsupported line: "Screw, M4",Description,9.99,10,Hardware
         var parts = csvLine.Split(',', StringSplitOptions.TrimEntries);
         if (parts.Length != 5)
             return false;

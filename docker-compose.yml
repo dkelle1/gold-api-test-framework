@@ -1,5 +1,9 @@
 services:
 
+  # NOTE: container_name is intentionally omitted across services.
+  # This keeps docker compose projects isolated in Jenkins where multiple PR jobs
+  # can run in parallel without global container-name collisions.
+
   # ── Infrastructure ──────────────────────────────────────────────────────────
 
   consul:
@@ -164,14 +168,11 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=ImportServiceDb;User Id=sa;Password=ApiTest_Sa@2024;TrustServerCertificate=True"
-      Redis__ConnectionString: "redis:6379"
       Jwt__SecretKey: "ApiTestFramework_SuperSecretKey_ForDevelopment_2024_MinLength32!"
       Jwt__Issuer: "ApiTestFramework.AuthService"
       Jwt__Audience: "ApiTestFramework.Services"
     depends_on:
       sqlserver:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       consul:
         condition: service_healthy

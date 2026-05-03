@@ -75,8 +75,9 @@ public static class StepsGenerator
         {
             var methodName = BuildMethodName(ep);
             var allureLabel = BuildAllureLabel(ep);
+            var successCode = InferSuccessStatusCode(ep);
             var returnType = InferReturnType(ep, responseDto);
-            var innerType = responseDto; // always single-item type for SendAsync<T>
+            var innerType = responseDto;
             var isVoidResponse = ep.Method == "DELETE" && !ep.Responses.ContainsKey(200);
 
             sb.AppendLine();
@@ -99,8 +100,7 @@ public static class StepsGenerator
             else
             {
                 // typed response — happy-path method that asserts 2xx
-                var successCode = ep.Responses.Keys.FirstOrDefault(k => k is >= 200 and < 300);
-                var httpStatusConst = successCode == 201 ? "HttpStatusCode.Created" : "HttpStatusCode.OK";
+                var httpStatusConst = ToHttpStatusCodeConstant(successCode);
 
                 sb.AppendLine($"    public async Task<{returnType}> {methodName}Async({BuildParams(ep)})");
                 sb.AppendLine("    {");
@@ -160,9 +160,35 @@ public static class StepsGenerator
 
     private static string InferReturnType(EndpointDefinition ep, string responseDto)
     {
-        // GET /collection → List<T>; everything else → T
-        var isCollection = ep.Method == "GET" && !ep.Path.TrimEnd('/').EndsWith('}');
-        return isCollection ? $"List<{responseDto}>" : responseDto;
+        var successSchema = ep.Responses
+            .Where(r => r.Key is >= 200 and < 300)
+            .OrderBy(r => r.Key)
+            .Select(r => r.Value)
+            .FirstOrDefault();
+
+        return string.IsNullOrWhiteSpace(successSchema) ? responseDto : successSchema!;
+    }
+
+    private static int InferSuccessStatusCode(EndpointDefinition ep)
+    {
+        var successCode = ep.Responses.Keys
+            .Where(k => k is >= 200 and < 300)
+            .OrderBy(k => k)
+            .FirstOrDefault();
+
+        return successCode == 0 ? 200 : successCode;
+    }
+
+    private static string ToHttpStatusCodeConstant(int statusCode)
+    {
+        return statusCode switch
+        {
+            200 => "HttpStatusCode.OK",
+            201 => "HttpStatusCode.Created",
+            202 => "HttpStatusCode.Accepted",
+            204 => "HttpStatusCode.NoContent",
+            _ => $"(HttpStatusCode){statusCode}"
+        };
     }
 
     private static string BuildParams(EndpointDefinition ep)
@@ -214,9 +240,12 @@ public static class StepsGenerator
 
         if (!hasPathParam && !hasQuery && !hasBody)
         {
-            return ep.Method == "GET"
-                ? $"RequestFactory.Get(\"{ep.Path}\")"
-                : $"RequestFactory.{ToPascalCase(ep.Method.ToLowerInvariant())}(\"{ep.Path}\", request)";
+            return ep.Method switch
+            {
+                "GET" => $"RequestFactory.Get(\"{ep.Path}\")",
+                "DELETE" => $"RequestFactory.Delete(\"{ep.Path}\")",
+                _ => $"RequestFactory.{ToPascalCase(ep.Method.ToLowerInvariant())}(\"{ep.Path}\", (object?)null)"
+            };
         }
 
         var lines = new List<string>

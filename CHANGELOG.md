@@ -38,6 +38,9 @@ Versions map to merged PRs on the `main` branch.
 - Updated `docker-compose.yml` to run `import-service` on port `5400` and seed `ImportService` URL into Consul KV.
 - Updated `Jenkinsfile` test-stage environment with `TEST_Services__ImportService__BaseUrl`.
 - Updated test configuration and route constants to include ImportService (`appsettings.test.json`, `Routes.cs`).
+- Removed fixed `container_name` usage from compose services to prevent cross-job naming collisions in Jenkins parallel PR builds.
+- Removed unused Redis wiring from `ImportService` startup and compose dependencies.
+- Switched import queue to bounded channel mode; `POST /api/imports/products/csv` now returns `503 Service Unavailable` when the queue is full.
 
 ### feat/openapi-steps-generator (PR #5)
 - **Added** `StepsGenerator` in `ApiTestFramework.OpenApi` — generates a full `*ServiceSteps.cs` from parsed `EndpointDefinition` objects.

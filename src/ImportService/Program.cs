@@ -62,12 +62,6 @@ builder.Services.AddAuthorization();
 builder.Services.AddDbContext<ImportDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.AddStackExchangeRedisCache(options =>
-{
-    options.Configuration = builder.Configuration["Redis:ConnectionString"];
-    options.InstanceName = "ImportService:";
-});
-
 builder.Services.AddSingleton<IProductImportQueue, ProductImportQueue>();
 builder.Services.AddHostedService<ProductImportWorker>();
 
@@ -110,13 +104,19 @@ app.MapPost("/api/imports/products/csv", async (IFormFile file, ImportDbContext 
     db.ProductImportBatches.Add(batch);
     await db.SaveChangesAsync(ct);
 
-    await queue.EnqueueAsync(new ProductImportJob(batch.Id, stream.ToArray()), ct);
+    if (!queue.TryEnqueue(new ProductImportJob(batch.Id, stream.ToArray())))
+    {
+        db.ProductImportBatches.Remove(batch);
+        await db.SaveChangesAsync(ct);
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
 
     return Results.Accepted($"/api/imports/{batch.Id}/status", ImportAcceptedResponse.FromEntity(batch));
 })
 .WithName("StartProductCsvImport")
 .WithTags("Imports")
 .Produces<ImportAcceptedResponse>(StatusCodes.Status202Accepted)
+.Produces(StatusCodes.Status503ServiceUnavailable)
 .Produces(StatusCodes.Status400BadRequest)
 .DisableAntiforgery()
 .RequireAuthorization();

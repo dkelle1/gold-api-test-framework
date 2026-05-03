@@ -2,23 +2,39 @@ using System.Threading.Channels;
 using ImportService.Data;
 using ImportService.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace ImportService.Services;
 
+// NOTE: CsvContent keeps the full payload in memory for now.
+// Next step for large-scale traffic: persist payload to external storage and enqueue only a reference.
 public sealed record ProductImportJob(Guid BatchId, byte[] CsvContent);
 
 public interface IProductImportQueue
 {
-    ValueTask EnqueueAsync(ProductImportJob job, CancellationToken cancellationToken = default);
+    bool TryEnqueue(ProductImportJob job);
     ValueTask<ProductImportJob> DequeueAsync(CancellationToken cancellationToken);
 }
 
 public class ProductImportQueue : IProductImportQueue
 {
-    private readonly Channel<ProductImportJob> _channel = Channel.CreateUnbounded<ProductImportJob>();
+    private readonly Channel<ProductImportJob> _channel;
 
-    public ValueTask EnqueueAsync(ProductImportJob job, CancellationToken cancellationToken = default)
-        => _channel.Writer.WriteAsync(job, cancellationToken);
+    public ProductImportQueue(IConfiguration configuration)
+    {
+        var configuredCapacity = configuration.GetValue<int?>("ImportQueue:Capacity") ?? 20;
+        var capacity = Math.Max(1, configuredCapacity);
+
+        _channel = Channel.CreateBounded<ProductImportJob>(new BoundedChannelOptions(capacity)
+        {
+            FullMode = BoundedChannelFullMode.DropWrite,
+            SingleReader = true,
+            SingleWriter = false
+        });
+    }
+
+    public bool TryEnqueue(ProductImportJob job)
+        => _channel.Writer.TryWrite(job);
 
     public ValueTask<ProductImportJob> DequeueAsync(CancellationToken cancellationToken)
         => _channel.Reader.ReadAsync(cancellationToken);
