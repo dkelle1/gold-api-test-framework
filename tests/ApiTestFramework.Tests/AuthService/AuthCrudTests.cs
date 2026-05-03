@@ -35,9 +35,11 @@ public class AuthCrudTests : BaseTest
         var request = AuthDataGenerator.GenerateRegisterRequest();
 
         // Act
-        var authResponse = await _authSteps.RegisterUserAsync(request);
+        var response = await _authSteps.RegisterUserAsync(request);
 
         // Assert
+        response.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var authResponse = response.ShouldHaveData();
         authResponse.Token.AccessToken.Should().NotBeNullOrEmpty();
         authResponse.User.Username.Should().Be(request.Username);
         authResponse.User.Email.Should().Be(request.Email);
@@ -52,14 +54,17 @@ public class AuthCrudTests : BaseTest
     {
         // Arrange — register a user first
         var registerRequest = AuthDataGenerator.GenerateRegisterRequest();
-        await _authSteps.RegisterUserAsync(registerRequest);
+        var registerResponse = await _authSteps.RegisterUserAsync(registerRequest);
+        registerResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
 
         // Act
         var loginRequest = AuthDataGenerator.GenerateLoginRequest(
             registerRequest.Username, registerRequest.Password);
-        var authResponse = await _authSteps.LoginAsync(loginRequest);
+        var loginResponse = await _authSteps.LoginAsync(loginRequest);
 
         // Assert
+        loginResponse.ShouldHaveStatusCode(HttpStatusCode.OK);
+        var authResponse = loginResponse.ShouldHaveData();
         authResponse.Token.AccessToken.Should().NotBeNullOrEmpty();
         authResponse.User.Username.Should().Be(registerRequest.Username);
     }
@@ -71,7 +76,8 @@ public class AuthCrudTests : BaseTest
     {
         // Arrange — register a user first
         var registerRequest = AuthDataGenerator.GenerateRegisterRequest();
-        await _authSteps.RegisterUserAsync(registerRequest);
+        var registerResponse = await _authSteps.RegisterUserAsync(registerRequest);
+        registerResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
 
         // Act
         var loginRequest = AuthDataGenerator.GenerateLoginRequest(
@@ -103,7 +109,8 @@ public class AuthCrudTests : BaseTest
     {
         // Arrange — register a user
         var registerRequest = AuthDataGenerator.GenerateRegisterRequest();
-        await _authSteps.RegisterUserAsync(registerRequest);
+        var registerResponse = await _authSteps.RegisterUserAsync(registerRequest);
+        registerResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
 
         // Act — try to register with the same username
         var duplicateRequest = new RegisterRequest

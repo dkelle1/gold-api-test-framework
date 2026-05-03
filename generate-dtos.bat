@@ -57,5 +57,13 @@ dotnet run --project %CLI% --no-build -c Release -- ^
   --out %OUT%\CommonDtos.g.cs
 
 echo.
+echo Generating ImportService DTOs...
+dotnet run --project %CLI% --no-build -c Release -- ^
+  --mode dto ^
+  --swagger %SWAGGER%\import-swagger.json ^
+  --ns ApiTestFramework.Clients.ImportService ^
+  --out %OUT%\ImportDtos.g.cs
+
+echo.
 echo Done! Generated DTOs are in %OUT%
 pause

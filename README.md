@@ -1,6 +1,6 @@
 # API Test Framework
 
-Complete solution with three .NET 8 microservices and a generic API test framework with JWT authentication.
+Complete solution with four .NET 8 microservices and a generic API test framework with JWT authentication.
 
 ## Architecture
 
@@ -8,12 +8,13 @@ Complete solution with three .NET 8 microservices and a generic API test framewo
 - **AuthService** (`:5300`) — User registration & login, JWT Bearer token generation
 - **ProductService** (`:5100`) — CRUD for products (requires JWT authorization)
 - **OrderService** (`:5200`) — CRUD for orders, depends on ProductService for product validation (requires JWT authorization)
+- **ImportService** (`:5400`) — asynchronous CSV batch import for products with background worker and import-status tracking
 
 ### Test Framework
 - **ApiTestFramework.Core** — Generic request builder, API client, Autofac DI, Allure integration, FluentAssertions extensions, JWT token management, per-test token context (`TestTokenContext` / `TokenScope`)
 - **ApiTestFramework.Clients** — NSwag-generated DTOs and placeholder DTOs
 - **ApiTestFramework.Steps** — Step classes per service (Bogus data generators, Allure step annotations), `UserScope` for per-test user isolation
-- **ApiTestFramework.Tests** — NUnit test fixtures (28 tests across 4 fixtures)
+- **ApiTestFramework.Tests** — NUnit test fixtures (31 tests across 5 fixtures)
 - **ApiTestFramework.OpenApi** — OpenAPI spec loader, test-case scaffolder, and `StepsGenerator` for code generation
 - **ApiTestFramework.OpenApi.Cli** — CLI wrapper (`generate-steps.exe`) that drives `StepsGenerator` from the command line
 
@@ -81,12 +82,16 @@ dotnet run --project src/ProductService
 
 # Terminal 3
 dotnet run --project src/OrderService
+
+# Terminal 4
+dotnet run --project src/ImportService
 ```
 
 ### 2. Verify Swagger UI
 - AuthService: http://localhost:5300
 - ProductService: http://localhost:5100
 - OrderService: http://localhost:5200
+- ImportService: http://localhost:5400
 
 ### 3. (Optional) Generate NSwag clients
 ```bash
@@ -112,12 +117,13 @@ allure serve TestResults/allure-results
 ├── src/
 │   ├── AuthService/             # Auth microservice (port 5300) — JWT token issuer
 │   ├── ProductService/          # Product microservice (port 5100, JWT protected)
-│   └── OrderService/            # Order microservice (port 5200, JWT protected, depends on ProductService)
+│   ├── OrderService/            # Order microservice (port 5200, JWT protected, depends on ProductService)
+│   └── ImportService/           # CSV import microservice (port 5400, JWT protected, async worker)
 ├── tests/
 │   ├── ApiTestFramework.Core/   # Core framework: RequestBuilder, ApiClient, DI, Assertions, TokenProvider, ConfigurationProvider, TestTokenContext, TokenScope
-│   ├── ApiTestFramework.Clients/# NSwag configs + placeholder DTOs (Auth, Product, Order)
+│   ├── ApiTestFramework.Clients/# NSwag configs + placeholder DTOs (Auth, Product, Order, Import)
 │   ├── ApiTestFramework.Steps/  # Step classes + Bogus data generators + UserScope (per-test user isolation)
-│   ├── ApiTestFramework.Tests/  # NUnit test fixtures (Auth, Product, Order — 28 tests)
+│   ├── ApiTestFramework.Tests/  # NUnit test fixtures (Auth, Product, Order, Import, Framework — 31 tests)
 │   ├── ApiTestFramework.OpenApi/# OpenAPI loader, TestCaseScaffolder, StepsGenerator
 │   └── ApiTestFramework.OpenApi.Cli/ # CLI (generate-steps.exe) to generate *ServiceSteps.cs from swagger
 ├── docker-compose.yml           # Full stack: microservices + SQL Server + Redis + Consul
@@ -155,7 +161,8 @@ No C# code changes required.
   "Services": {
     "AuthService":    { "BaseUrl": "http://localhost:5300" },
     "ProductService": { "BaseUrl": "http://localhost:5100" },
-    "OrderService":   { "BaseUrl": "http://localhost:5200" }
+    "OrderService":   { "BaseUrl": "http://localhost:5200" },
+    "ImportService":  { "BaseUrl": "http://localhost:5400" }
   },
   "DefaultTimeoutSeconds": 30,
   "RetryCount": 0
@@ -301,9 +308,10 @@ response.ShouldMatchDtoExcluding(expectedProduct,
 |-------|-------|-------------|
 | AuthService | 7 | Register, login, duplicate user, wrong password, unauthorized access |
 | ProductService (CRUD) | 7 | Create, get, get all, update, delete (valid & invalid scenarios) |
-| ProductService (Multi-user) | 6 | Per-test user isolation, token scoping, scope restore, `UseToken` override |
+| Framework (Token Isolation) | 6 | Per-test user isolation, token scoping, scope restore, `UseToken` override |
 | OrderService | 8 | Create (valid & invalid product), get, get all, update, delete, full lifecycle |
-| **Total** | **28** | |
+| ImportService | 3 | CSV batch import, progress tracking, and not-found status checks |
+| **Total** | **31** | |
 
 ## CI/CD
 

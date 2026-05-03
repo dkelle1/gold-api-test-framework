@@ -39,5 +39,13 @@ echo Generating AuthServiceSteps...
       --out     %OUT%\AuthServiceSteps.g.cs
 
 echo -------------------------------------------------------
+echo Generating ImportServiceSteps...
+%CLI% --swagger %SWAGGER%\import-swagger.json ^
+      --service Import --dto ImportStatusResponse ^
+      --ns      %NS% ^
+      --dto-ns  ApiTestFramework.Clients.ImportService ^
+      --out     %OUT%\ImportServiceSteps.g.cs
+
+echo -------------------------------------------------------
 echo Done. Generated files are in %OUT%\
 endlocal

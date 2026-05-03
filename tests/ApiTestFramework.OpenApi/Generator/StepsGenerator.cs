@@ -44,10 +44,8 @@ public static class StepsGenerator
         sb.AppendLine($"// Service   : {serviceName}");
         sb.AppendLine("// DO NOT EDIT — regenerate via generate-steps.bat");
         sb.AppendLine();
-        sb.AppendLine("using System.Net;");
         sb.AppendLine("using Allure.NUnit.Attributes;");
         sb.AppendLine($"using {dtoNamespace};");
-        sb.AppendLine("using ApiTestFramework.Core.Assertions;");
         sb.AppendLine("using ApiTestFramework.Core.Client;");
         sb.AppendLine("using ApiTestFramework.Core.Constants;");
         sb.AppendLine("using ApiTestFramework.Core.DI;");
@@ -76,7 +74,6 @@ public static class StepsGenerator
             var methodName = BuildMethodName(ep);
             var allureLabel = BuildAllureLabel(ep);
             var returnType = InferReturnType(ep, responseDto);
-            var innerType = responseDto; // always single-item type for SendAsync<T>
             var isVoidResponse = ep.Method == "DELETE" && !ep.Responses.ContainsKey(200);
 
             sb.AppendLine();
@@ -92,21 +89,17 @@ public static class StepsGenerator
                 // void response (DELETE returning 204)
                 sb.AppendLine($"    public async Task<RestResponse> {methodName}Async({BuildParams(ep)})");
                 sb.AppendLine("    {");
-                AppendRequestBody(sb, ep, innerType);
+                AppendRequestBodyVoid(sb, ep);
                 sb.AppendLine("        return response;");
                 sb.AppendLine("    }");
             }
             else
             {
-                // typed response — happy-path method that asserts 2xx
-                var successCode = ep.Responses.Keys.FirstOrDefault(k => k is >= 200 and < 300);
-                var httpStatusConst = successCode == 201 ? "HttpStatusCode.Created" : "HttpStatusCode.OK";
-
-                sb.AppendLine($"    public async Task<{returnType}> {methodName}Async({BuildParams(ep)})");
+                // typed response — raw response only, assertions are done in tests
+                sb.AppendLine($"    public async Task<RestResponse<{returnType}>> {methodName}Async({BuildParams(ep)})");
                 sb.AppendLine("    {");
                 AppendRequestBody(sb, ep, returnType);
-                sb.AppendLine($"        response.ShouldHaveStatusCode({httpStatusConst});");
-                sb.AppendLine($"        return response.ShouldHaveData();");
+                sb.AppendLine("        return response;");
                 sb.AppendLine("    }");
 
                 // Try* overload for mutating verbs
@@ -160,9 +153,13 @@ public static class StepsGenerator
 
     private static string InferReturnType(EndpointDefinition ep, string responseDto)
     {
-        // GET /collection → List<T>; everything else → T
-        var isCollection = ep.Method == "GET" && !ep.Path.TrimEnd('/').EndsWith('}');
-        return isCollection ? $"List<{responseDto}>" : responseDto;
+        var successSchema = ep.Responses
+            .Where(r => r.Key is >= 200 and < 300)
+            .OrderBy(r => r.Key)
+            .Select(r => r.Value)
+            .FirstOrDefault();
+
+        return string.IsNullOrWhiteSpace(successSchema) ? responseDto : successSchema!;
     }
 
     private static string BuildParams(EndpointDefinition ep)
@@ -196,6 +193,12 @@ public static class StepsGenerator
         sb.AppendLine($"            {BuildRequestExpression(ep)});");
     }
 
+    private static void AppendRequestBodyVoid(StringBuilder sb, EndpointDefinition ep)
+    {
+        sb.AppendLine("        var response = await _client.SendAsync(");
+        sb.AppendLine($"            {BuildRequestExpression(ep)});");
+    }
+
     private static string BuildRequestExpression(EndpointDefinition ep)
     {
         var hasPathParam = ep.Parameters.Any(p => p.In == "path");
@@ -214,9 +217,12 @@ public static class StepsGenerator
 
         if (!hasPathParam && !hasQuery && !hasBody)
         {
-            return ep.Method == "GET"
-                ? $"RequestFactory.Get(\"{ep.Path}\")"
-                : $"RequestFactory.{ToPascalCase(ep.Method.ToLowerInvariant())}(\"{ep.Path}\", request)";
+            return ep.Method switch
+            {
+                "GET" => $"RequestFactory.Get(\"{ep.Path}\")",
+                "DELETE" => $"RequestFactory.Delete(\"{ep.Path}\")",
+                _ => $"RequestFactory.{ToPascalCase(ep.Method.ToLowerInvariant())}(\"{ep.Path}\", (object?)null)"
+            };
         }
 
         var lines = new List<string>

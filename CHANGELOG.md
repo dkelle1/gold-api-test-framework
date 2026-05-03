@@ -26,6 +26,23 @@ Versions map to merged PRs on the `main` branch.
 - Removed `MultiUserProductTests` from `tests/ApiTestFramework.Tests/ProductService` after extraction.
 - Removed temporary repository artifact `jenkins-pr8-config.xml` (Jenkins job config export).
 
+### feat/allure-onetimesetup-guard (batch-import extension)
+
+#### Added
+- Added new `ImportService` microservice (`src/ImportService`) with JWT-protected endpoints for asynchronous product CSV batch import.
+- Added background worker queue for import processing (`ProductImportWorker`) and persisted import batch status (`Queued`, `Processing`, `Completed`, `Failed`).
+- Added API endpoint `POST /api/imports/products/csv` for file upload and `GET /api/imports/{batchId}/status` for polling import progress.
+- Added ImportService DTOs, step class, and API tests (`tests/ApiTestFramework.Tests/ImportService/ImportBatchTests.cs`) including a 1000-row batch scenario.
+
+#### Changed
+- Updated `docker-compose.yml` to run `import-service` on port `5400` and seed `ImportService` URL into Consul KV.
+- Updated `Jenkinsfile` test-stage environment with `TEST_Services__ImportService__BaseUrl`.
+- Updated test configuration and route constants to include ImportService (`appsettings.test.json`, `Routes.cs`).
+- Removed fixed `container_name` usage from compose services to prevent cross-job naming collisions in Jenkins parallel PR builds.
+- Removed unused Redis wiring from `ImportService` startup and compose dependencies.
+- Switched import queue to bounded channel mode; `POST /api/imports/products/csv` now returns `503 Service Unavailable` when the queue is full.
+- Standardized test architecture so assertions are performed in test fixtures, while step classes (manual and generated) return raw `RestResponse` objects.
+
 ### feat/openapi-steps-generator (PR #5)
 - **Added** `StepsGenerator` in `ApiTestFramework.OpenApi` — generates a full `*ServiceSteps.cs` from parsed `EndpointDefinition` objects.
 - **Added** `ApiTestFramework.OpenApi.Cli` project (`generate-steps.exe`) — .NET 8 console app wrapping the generator with a CLI interface (`--swagger`, `--service`, `--dto`, `--ns`, `--dto-ns`, `--out`).

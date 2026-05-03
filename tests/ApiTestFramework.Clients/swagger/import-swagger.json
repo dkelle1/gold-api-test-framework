@@ -1,0 +1,125 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Import Service API",
+    "description": "Microservice for asynchronous product CSV imports",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/imports/products/csv": {
+      "post": {
+        "tags": [ "Imports" ],
+        "operationId": "StartProductCsvImport",
+        "security": [ { "Bearer": [] } ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": [ "file" ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ImportAcceptedResponse" }
+              }
+            }
+          },
+          "400": { "description": "Bad Request" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/imports/{batchId}/status": {
+      "get": {
+        "tags": [ "Imports" ],
+        "operationId": "GetImportStatus",
+        "security": [ { "Bearer": [] } ],
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ImportStatusResponse" }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Not Found" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "ImportAcceptedResponse": {
+        "type": "object",
+        "properties": {
+          "batchId": { "type": "string", "format": "uuid" },
+          "status": { "type": "string" },
+          "statusUrl": { "type": "string" }
+        }
+      },
+      "ImportStatusResponse": {
+        "type": "object",
+        "properties": {
+          "batch": { "$ref": "#/components/schemas/BatchInfo" },
+          "progress": { "$ref": "#/components/schemas/ProgressInfo" },
+          "audit": { "$ref": "#/components/schemas/ImportAuditInfo" }
+        }
+      },
+      "BatchInfo": {
+        "type": "object",
+        "properties": {
+          "batchId": { "type": "string", "format": "uuid" },
+          "fileName": { "type": "string" },
+          "status": { "type": "string" },
+          "errorMessage": { "type": "string", "nullable": true }
+        }
+      },
+      "ProgressInfo": {
+        "type": "object",
+        "properties": {
+          "totalRecords": { "type": "integer", "format": "int32" },
+          "succeededRecords": { "type": "integer", "format": "int32" },
+          "failedRecords": { "type": "integer", "format": "int32" }
+        }
+      },
+      "ImportAuditInfo": {
+        "type": "object",
+        "properties": {
+          "createdAt": { "type": "string", "format": "date-time" },
+          "startedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "completedAt": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      }
+    }
+  }
+}
