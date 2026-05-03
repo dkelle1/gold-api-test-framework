@@ -41,6 +41,7 @@ Versions map to merged PRs on the `main` branch.
 - Removed fixed `container_name` usage from compose services to prevent cross-job naming collisions in Jenkins parallel PR builds.
 - Removed unused Redis wiring from `ImportService` startup and compose dependencies.
 - Switched import queue to bounded channel mode; `POST /api/imports/products/csv` now returns `503 Service Unavailable` when the queue is full.
+- Standardized test architecture so assertions are performed in test fixtures, while step classes (manual and generated) return raw `RestResponse` objects.
 
 ### feat/openapi-steps-generator (PR #5)
 - **Added** `StepsGenerator` in `ApiTestFramework.OpenApi` — generates a full `*ServiceSteps.cs` from parsed `EndpointDefinition` objects.

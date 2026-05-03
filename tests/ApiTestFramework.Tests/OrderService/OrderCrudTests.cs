@@ -31,13 +31,17 @@ public class OrderCrudTests : BaseTest
     public async Task CreateOrder_WithValidProduct_ReturnsCreated()
     {
         // Arrange — create a product in ProductService first
-        var product = await _productSteps.CreateProductAsync();
+        var productResponse = await _productSteps.CreateProductAsync();
+        productResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var product = productResponse.ShouldHaveData();
         var request = OrderDataGenerator.GenerateCreateOrderRequest(product.Id);
 
         // Act
-        var order = await _orderSteps.CreateOrderAsync(request);
+        var orderResponse = await _orderSteps.CreateOrderAsync(request);
 
         // Assert
+        orderResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var order = orderResponse.ShouldHaveData();
         order.Id.Should().BeGreaterThan(0);
         order.Product.ProductId.Should().Be(product.Id);
         order.Product.ProductName.Should().Be(product.Name);
@@ -69,7 +73,9 @@ public class OrderCrudTests : BaseTest
     public async Task GetOrder_WithValidId_ReturnsOrder()
     {
         // Arrange — full setup: create product + order
-        var (order, _) = await _orderSteps.CreateOrderWithProductAsync();
+        var (orderResponse, _) = await _orderSteps.CreateOrderWithProductAsync();
+        orderResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var order = orderResponse.ShouldHaveData();
 
         // Act
         var response = await _orderSteps.GetOrderAsync(order.Id);
@@ -97,7 +103,8 @@ public class OrderCrudTests : BaseTest
     public async Task GetAllOrders_ReturnsOrderList()
     {
         // Arrange
-        await _orderSteps.CreateOrderWithProductAsync();
+        var (createResponse, _) = await _orderSteps.CreateOrderWithProductAsync();
+        createResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
 
         // Act
         var response = await _orderSteps.GetAllOrdersAsync();
@@ -114,7 +121,9 @@ public class OrderCrudTests : BaseTest
     public async Task UpdateOrder_WithValidData_ReturnsUpdated()
     {
         // Arrange
-        var (order, _) = await _orderSteps.CreateOrderWithProductAsync();
+        var (createResponse, _) = await _orderSteps.CreateOrderWithProductAsync();
+        createResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var order = createResponse.ShouldHaveData();
         var updateRequest = new UpdateOrderRequest
         {
             CustomerName = "Updated Customer Name",
@@ -137,7 +146,9 @@ public class OrderCrudTests : BaseTest
     public async Task DeleteOrder_WithValidId_ReturnsNoContent()
     {
         // Arrange
-        var (order, _) = await _orderSteps.CreateOrderWithProductAsync();
+        var (createResponse, _) = await _orderSteps.CreateOrderWithProductAsync();
+        createResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var order = createResponse.ShouldHaveData();
 
         // Act
         var deleteResponse = await _orderSteps.DeleteOrderAsync(order.Id);
@@ -156,11 +167,15 @@ public class OrderCrudTests : BaseTest
     public async Task OrderLifecycle_FullFlow_Succeeds()
     {
         // Create product
-        var product = await _productSteps.CreateProductAsync();
+        var productResponse = await _productSteps.CreateProductAsync();
+        productResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var product = productResponse.ShouldHaveData();
 
         // Create order
         var createRequest = OrderDataGenerator.GenerateCreateOrderRequest(product.Id);
-        var order = await _orderSteps.CreateOrderAsync(createRequest);
+        var orderResponse = await _orderSteps.CreateOrderAsync(createRequest);
+        orderResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var order = orderResponse.ShouldHaveData();
         order.Status.Should().Be(OrderStatus.Pending);
 
         // Update to Confirmed

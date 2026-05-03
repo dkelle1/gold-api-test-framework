@@ -1,7 +1,5 @@
-using System.Net;
 using Allure.NUnit.Attributes;
 using ApiTestFramework.Clients.AuthService;
-using ApiTestFramework.Core.Assertions;
 using ApiTestFramework.Core.Client;
 using ApiTestFramework.Core.Constants;
 using ApiTestFramework.Core.DI;
@@ -30,7 +28,7 @@ public class AuthServiceSteps
     /// Registers a new user with random data and returns the auth response (including token).
     /// </summary>
     [AllureStep("Register a new user with random data")]
-    public async Task<AuthResponse> RegisterUserAsync()
+    public async Task<RestResponse<AuthResponse>> RegisterUserAsync()
     {
         var request = AuthDataGenerator.GenerateRegisterRequest();
         return await RegisterUserAsync(request);
@@ -47,7 +45,7 @@ public class AuthServiceSteps
     /// </code>
     /// </summary>
     [AllureStep("Register a new user with role: {role}")]
-    public async Task<AuthResponse> RegisterUserAsync(string role)
+    public async Task<RestResponse<AuthResponse>> RegisterUserAsync(string role)
     {
         var request = AuthDataGenerator.GenerateRegisterRequest(role);
         return await RegisterUserAsync(request);
@@ -57,47 +55,35 @@ public class AuthServiceSteps
     /// Registers a new user with a specific request.
     /// </summary>
     [AllureStep("Register a new user")]
-    public async Task<AuthResponse> RegisterUserAsync(RegisterRequest registerRequest)
+    public async Task<RestResponse<AuthResponse>> RegisterUserAsync(RegisterRequest registerRequest)
     {
         _logger.Information("Registering user: {Username}", registerRequest.Username);
 
         var response = await _client.SendAsync<AuthResponse>(
             RequestFactory.Post(AuthServiceRoutes.Register, registerRequest));
 
-        response.ShouldHaveStatusCode(HttpStatusCode.Created);
-        var authResponse = response.ShouldHaveData();
-
-        _logger.Information("Registered user: {Username}, Token expires at: {ExpiresAt}",
-            authResponse.User.Username, authResponse.Token.ExpiresAt);
-
-        return authResponse;
+        return response;
     }
 
     /// <summary>
     /// Logs in with a specific request and returns the auth response.
     /// </summary>
     [AllureStep("Login user")]
-    public async Task<AuthResponse> LoginAsync(LoginRequest loginRequest)
+    public async Task<RestResponse<AuthResponse>> LoginAsync(LoginRequest loginRequest)
     {
         _logger.Information("Logging in user: {Username}", loginRequest.Username);
 
         var response = await _client.SendAsync<AuthResponse>(
             RequestFactory.Post(AuthServiceRoutes.Login, loginRequest));
 
-        response.ShouldHaveStatusCode(HttpStatusCode.OK);
-        var authResponse = response.ShouldHaveData();
-
-        _logger.Information("Logged in user: {Username}, Token expires at: {ExpiresAt}",
-            authResponse.User.Username, authResponse.Token.ExpiresAt);
-
-        return authResponse;
+        return response;
     }
 
     /// <summary>
     /// Logs in with username/password and returns the auth response.
     /// </summary>
     [AllureStep("Login user: {username}")]
-    public async Task<AuthResponse> LoginAsync(string username, string password)
+    public async Task<RestResponse<AuthResponse>> LoginAsync(string username, string password)
     {
         var loginRequest = AuthDataGenerator.GenerateLoginRequest(username, password);
         return await LoginAsync(loginRequest);
@@ -110,8 +96,11 @@ public class AuthServiceSteps
     [AllureStep("Register user and get Bearer token")]
     public async Task<string> GetBearerTokenAsync()
     {
-        var authResponse = await RegisterUserAsync();
-        return authResponse.Token.AccessToken;
+        var response = await RegisterUserAsync();
+        var token = response.Data?.Token?.AccessToken;
+        if (string.IsNullOrWhiteSpace(token))
+            throw new InvalidOperationException($"Token not returned by AuthService. Status: {response.StatusCode}");
+        return token;
     }
 
     /// <summary>

@@ -42,13 +42,21 @@ public class TokenIsolationFrameworkTests : BaseTest
         "are isolated from each other.")]
     public async Task TwoDistinctUsers_BothCanCreateProduct_ReturnsCreated()
     {
-        var authA = await _authSteps.RegisterUserAsync("User");
+        var authAResponse = await _authSteps.RegisterUserAsync("User");
+        authAResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var authA = authAResponse.ShouldHaveData();
         await using var userA = UserScope.FromAuthResponse(authA);
-        var productA = await _productSteps.CreateProductAsync();
+        var productAResponse = await _productSteps.CreateProductAsync();
+        productAResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var productA = productAResponse.ShouldHaveData();
 
-        var authB = await _authSteps.RegisterUserAsync("User");
+        var authBResponse = await _authSteps.RegisterUserAsync("User");
+        authBResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var authB = authBResponse.ShouldHaveData();
         await using var userB = UserScope.FromAuthResponse(authB);
-        var productB = await _productSteps.CreateProductAsync();
+        var productBResponse = await _productSteps.CreateProductAsync();
+        productBResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var productB = productBResponse.ShouldHaveData();
 
         productA.Id.Should().BeGreaterThan(0);
         productB.Id.Should().BeGreaterThan(0);
@@ -63,17 +71,25 @@ public class TokenIsolationFrameworkTests : BaseTest
         "continue to succeed.")]
     public async Task UserScope_AfterDispose_DefaultTokenRestored()
     {
-        var baseline = await _productSteps.CreateProductAsync();
+        var baselineResponse = await _productSteps.CreateProductAsync();
+        baselineResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var baseline = baselineResponse.ShouldHaveData();
         RegisterCleanup(() => _productSteps.DeleteProductAsync(baseline.Id));
 
         Product? inScopeProduct;
-        var altAuth = await _authSteps.RegisterUserAsync("User");
+        var altAuthResponse = await _authSteps.RegisterUserAsync("User");
+        altAuthResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var altAuth = altAuthResponse.ShouldHaveData();
         await using (var altUser = UserScope.FromAuthResponse(altAuth))
         {
-            inScopeProduct = await _productSteps.CreateProductAsync();
+            var inScopeResponse = await _productSteps.CreateProductAsync();
+            inScopeResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+            inScopeProduct = inScopeResponse.ShouldHaveData();
         }
 
-        var afterScopeProduct = await _productSteps.CreateProductAsync();
+        var afterScopeResponse = await _productSteps.CreateProductAsync();
+        afterScopeResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var afterScopeProduct = afterScopeResponse.ShouldHaveData();
         RegisterCleanup(() => _productSteps.DeleteProductAsync(afterScopeProduct.Id));
 
         inScopeProduct!.Id.Should().BeGreaterThan(0);
@@ -86,10 +102,14 @@ public class TokenIsolationFrameworkTests : BaseTest
         "UserScope.FromAuthResponse can scope an existing AuthResponse without extra registration.")]
     public async Task UserScope_FromExistingAuthResponse_UsesCorrectToken()
     {
-        var auth = await _authSteps.RegisterUserAsync();
+        var authResponse = await _authSteps.RegisterUserAsync();
+        authResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var auth = authResponse.ShouldHaveData();
 
         using var scope = UserScope.FromAuthResponse(auth);
-        var product = await _productSteps.CreateProductAsync();
+        var productResponse = await _productSteps.CreateProductAsync();
+        productResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var product = productResponse.ShouldHaveData();
 
         product.Id.Should().BeGreaterThan(0);
         scope.AuthResponse.Token.AccessToken.Should().Be(auth.Token.AccessToken);
@@ -105,11 +125,15 @@ public class TokenIsolationFrameworkTests : BaseTest
 
         using (UseToken(secondUserToken))
         {
-            var product = await _productSteps.CreateProductAsync();
+            var productResponse = await _productSteps.CreateProductAsync();
+            productResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+            var product = productResponse.ShouldHaveData();
             product.Id.Should().BeGreaterThan(0);
         }
 
-        var productAfter = await _productSteps.CreateProductAsync();
+        var productAfterResponse = await _productSteps.CreateProductAsync();
+        productAfterResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var productAfter = productAfterResponse.ShouldHaveData();
         RegisterCleanup(() => _productSteps.DeleteProductAsync(productAfter.Id));
         productAfter.Id.Should().BeGreaterThan(0);
     }
@@ -133,7 +157,9 @@ public class TokenIsolationFrameworkTests : BaseTest
         "A user registered with a custom role returns that role in AuthResponse.")]
     public async Task RegisterAndScope_WithCustomRole_ReturnsExpectedRole()
     {
-        var adminAuth = await _authSteps.RegisterUserAsync("Admin");
+        var adminAuthResponse = await _authSteps.RegisterUserAsync("Admin");
+        adminAuthResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var adminAuth = adminAuthResponse.ShouldHaveData();
         await using var adminUser = UserScope.FromAuthResponse(adminAuth);
 
         adminUser.AuthResponse.User.Role.Should().Be("Admin");

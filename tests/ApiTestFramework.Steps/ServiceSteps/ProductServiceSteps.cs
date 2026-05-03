@@ -1,7 +1,5 @@
-using System.Net;
 using Allure.NUnit.Attributes;
 using ApiTestFramework.Clients.ProductService;
-using ApiTestFramework.Core.Assertions;
 using ApiTestFramework.Core.Client;
 using ApiTestFramework.Core.Constants;
 using ApiTestFramework.Core.DI;
@@ -30,7 +28,7 @@ public class ProductServiceSteps
     /// Creates a product with random data and returns the created product.
     /// </summary>
     [AllureStep("Create a product with random data")]
-    public async Task<Product> CreateProductAsync()
+    public async Task<RestResponse<Product>> CreateProductAsync()
     {
         var request = ProductDataGenerator.GenerateCreateProductRequest();
         return await CreateProductAsync(request);
@@ -40,18 +38,14 @@ public class ProductServiceSteps
     /// Creates a product from a specific request and returns the created product.
     /// </summary>
     [AllureStep("Create a product")]
-    public async Task<Product> CreateProductAsync(CreateProductRequest createRequest)
+    public async Task<RestResponse<Product>> CreateProductAsync(CreateProductRequest createRequest)
     {
         _logger.Information("Creating product: {Name}", createRequest.Name);
 
         var response = await _client.SendAsync<Product>(
             RequestFactory.Post(ProductServiceRoutes.Base, createRequest));
 
-        response.ShouldHaveStatusCode(HttpStatusCode.Created);
-        var product = response.ShouldHaveData();
-
-        _logger.Information("Created product with Id: {Id}", product.Id);
-        return product;
+        return response;
     }
 
     /// <summary>
