@@ -10,6 +10,7 @@ public record EndpointDefinition(
     string OperationId,
     string? Tag,
     string? RequestBodySchema,
+    bool HasRequestBody,
     IReadOnlyList<ParameterDefinition> Parameters,
     IReadOnlyDictionary<int, string?> Responses,
     bool RequiresAuth);

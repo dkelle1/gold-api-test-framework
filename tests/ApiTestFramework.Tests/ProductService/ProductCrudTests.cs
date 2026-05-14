@@ -18,9 +18,8 @@ public class ProductCrudTests : BaseTest
 {
     private ProductServiceSteps _steps = null!;
 
-    public override void OneTimeSetUp()
+    protected override void OnFixtureSetUp()
     {
-        base.OneTimeSetUp();
         _steps = new ProductServiceSteps();
     }
 
@@ -33,9 +32,11 @@ public class ProductCrudTests : BaseTest
         var request = ProductDataGenerator.GenerateCreateProductRequest();
 
         // Act
-        var product = await _steps.CreateProductAsync(request);
+        var response = await _steps.CreateProductAsync(request);
 
         // Assert — validate all fields from the request are in the response
+        response.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var product = response.ShouldHaveData();
         product.Id.Should().BeGreaterThan(0);
         product.Name.Should().Be(request.Name);
         product.Description.Should().Be(request.Description);
@@ -51,7 +52,9 @@ public class ProductCrudTests : BaseTest
     public async Task GetProduct_WithValidId_ReturnsProduct()
     {
         // Arrange — create a product first
-        var created = await _steps.CreateProductAsync();
+        var createResponse = await _steps.CreateProductAsync();
+        createResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var created = createResponse.ShouldHaveData();
 
         // Act
         var response = await _steps.GetProductAsync(created.Id);
@@ -67,7 +70,7 @@ public class ProductCrudTests : BaseTest
     public async Task GetProduct_WithInvalidId_ReturnsNotFound()
     {
         // Act
-        var response = await _steps.GetProductAsync(99999);
+        var response = await _steps.GetProductAsync(NonExistentId);
 
         // Assert
         response.ShouldHaveStatusCode(HttpStatusCode.NotFound);
@@ -79,8 +82,8 @@ public class ProductCrudTests : BaseTest
     public async Task GetAllProducts_ReturnsProductList()
     {
         // Arrange — create a couple of products
-        await _steps.CreateProductAsync();
-        await _steps.CreateProductAsync();
+        (await _steps.CreateProductAsync()).ShouldHaveStatusCode(HttpStatusCode.Created);
+        (await _steps.CreateProductAsync()).ShouldHaveStatusCode(HttpStatusCode.Created);
 
         // Act
         var response = await _steps.GetAllProductsAsync();
@@ -97,7 +100,9 @@ public class ProductCrudTests : BaseTest
     public async Task UpdateProduct_WithValidData_ReturnsUpdated()
     {
         // Arrange
-        var created = await _steps.CreateProductAsync();
+        var createResponse = await _steps.CreateProductAsync();
+        createResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var created = createResponse.ShouldHaveData();
         var updateRequest = ProductDataGenerator.GenerateUpdateProductRequest();
 
         // Act
@@ -116,7 +121,9 @@ public class ProductCrudTests : BaseTest
     public async Task DeleteProduct_WithValidId_ReturnsNoContent()
     {
         // Arrange
-        var created = await _steps.CreateProductAsync();
+        var createResponse = await _steps.CreateProductAsync();
+        createResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var created = createResponse.ShouldHaveData();
 
         // Act
         var deleteResponse = await _steps.DeleteProductAsync(created.Id);
@@ -135,7 +142,7 @@ public class ProductCrudTests : BaseTest
     public async Task DeleteProduct_WithInvalidId_ReturnsNotFound()
     {
         // Act
-        var response = await _steps.DeleteProductAsync(99999);
+        var response = await _steps.DeleteProductAsync(NonExistentId);
 
         // Assert
         response.ShouldHaveStatusCode(HttpStatusCode.NotFound);

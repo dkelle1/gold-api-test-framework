@@ -1,6 +1,6 @@
 # API Test Framework
 
-Complete solution with three .NET 8 microservices and a generic API test framework with JWT authentication.
+Complete solution with four .NET 8 microservices and a generic API test framework with JWT authentication.
 
 ## Architecture
 
@@ -8,12 +8,15 @@ Complete solution with three .NET 8 microservices and a generic API test framewo
 - **AuthService** (`:5300`) — User registration & login, JWT Bearer token generation
 - **ProductService** (`:5100`) — CRUD for products (requires JWT authorization)
 - **OrderService** (`:5200`) — CRUD for orders, depends on ProductService for product validation (requires JWT authorization)
+- **ImportService** (`:5400`) — asynchronous CSV batch import for products with background worker and import-status tracking
 
 ### Test Framework
-- **ApiTestFramework.Core** — Generic request builder, API client, Autofac DI, Allure integration, FluentAssertions extensions, JWT token management
+- **ApiTestFramework.Core** — Generic request builder, API client, Autofac DI, Allure integration, FluentAssertions extensions, JWT token management, per-test token context (`TestTokenContext` / `TokenScope`)
 - **ApiTestFramework.Clients** — NSwag-generated DTOs and placeholder DTOs
-- **ApiTestFramework.Steps** — Step classes per service (Bogus data generators, Allure step annotations)
-- **ApiTestFramework.Tests** — NUnit test fixtures (22 tests)
+- **ApiTestFramework.Steps** — Step classes per service (Bogus data generators, Allure step annotations), `UserScope` for per-test user isolation
+- **ApiTestFramework.Tests** — NUnit test fixtures (31 tests across 5 fixtures)
+- **ApiTestFramework.OpenApi** — OpenAPI spec loader, verb-specific test-case scaffolder, and `StepsGenerator` for code generation
+- **ApiTestFramework.OpenApi.Cli** — CLI wrapper (`generate-steps.exe`) that drives step, DTO, and test-stub generation from the command line
 
 ## Tech Stack
 | Component | Technology |
@@ -27,7 +30,9 @@ Complete solution with three .NET 8 microservices and a generic API test framewo
 | Test Data | Bogus |
 | Assertions | FluentAssertions |
 | Reporting | Allure (with full request/response logging) |
+| Configuration | HashiCorp Consul KV (optional, overrides JSON) |
 | CI/CD | Jenkins (Jenkinsfile) |
+| Infrastructure | Docker Compose (SQL Server, Redis, Consul) |
 
 ## Authentication Flow
 
@@ -53,6 +58,20 @@ All ProductService and OrderService endpoints require a valid JWT Bearer token. 
 
 ## Quick Start
 
+### Option A — Docker Compose (recommended)
+
+Starts all microservices, SQL Server, Redis, and Consul in one command.  
+The `consul-init` sidecar seeds service base-URLs into Consul KV so the test framework picks them up automatically.
+
+```bash
+docker compose up -d --build --wait
+dotnet build tests/ApiTestFramework.Tests
+export TEST_Consul__Address=http://localhost:8500   # (PowerShell: $env:TEST_Consul__Address=...)
+dotnet test tests/ApiTestFramework.Tests
+```
+
+### Option B — Manual (no Docker)
+
 ### 1. Start the microservices
 ```bash
 # Terminal 1 — AuthService (must start first)
@@ -63,12 +82,16 @@ dotnet run --project src/ProductService
 
 # Terminal 3
 dotnet run --project src/OrderService
+
+# Terminal 4
+dotnet run --project src/ImportService
 ```
 
 ### 2. Verify Swagger UI
 - AuthService: http://localhost:5300
 - ProductService: http://localhost:5100
 - OrderService: http://localhost:5200
+- ImportService: http://localhost:5400
 
 ### 3. (Optional) Generate NSwag clients
 ```bash
@@ -94,14 +117,95 @@ allure serve TestResults/allure-results
 ├── src/
 │   ├── AuthService/             # Auth microservice (port 5300) — JWT token issuer
 │   ├── ProductService/          # Product microservice (port 5100, JWT protected)
-│   └── OrderService/            # Order microservice (port 5200, JWT protected, depends on ProductService)
+│   ├── OrderService/            # Order microservice (port 5200, JWT protected, depends on ProductService)
+│   └── ImportService/           # CSV import microservice (port 5400, JWT protected, async worker)
 ├── tests/
-│   ├── ApiTestFramework.Core/   # Core framework: RequestBuilder, ApiClient, DI, Assertions, TokenProvider
-│   ├── ApiTestFramework.Clients/# NSwag configs + placeholder DTOs (Auth, Product, Order)
-│   ├── ApiTestFramework.Steps/  # Step classes + Bogus data generators
-│   └── ApiTestFramework.Tests/  # NUnit test fixtures (Auth, Product, Order — 22 tests)
+│   ├── ApiTestFramework.Core/   # Core framework: RequestBuilder, ApiClient, DI, Assertions, TokenProvider, ConfigurationProvider, TestTokenContext, TokenScope
+│   ├── ApiTestFramework.Clients/# NSwag configs + placeholder DTOs (Auth, Product, Order, Import)
+│   ├── ApiTestFramework.Steps/  # Step classes + Bogus data generators + UserScope (per-test user isolation)
+│   ├── ApiTestFramework.Tests/  # NUnit test fixtures (Auth, Product, Order, Import, Framework — 31 tests)
+│   ├── ApiTestFramework.OpenApi/# OpenAPI loader, TestCaseScaffolder, StepsGenerator
+│   └── ApiTestFramework.OpenApi.Cli/ # CLI (generate-steps.exe) to generate *ServiceSteps.cs from swagger
+├── docker-compose.yml           # Full stack: microservices + SQL Server + Redis + Consul
+├── generate-steps.bat           # Convenience script — regenerates all service step files from swagger
+├── generate-tests.bat           # Convenience script — generates verb-specific NUnit scaffold tests from swagger
 ├── Jenkinsfile                  # CI/CD pipeline
 └── ApiTestFramework.sln
+```
+
+## OpenAPI Code Generation
+
+### Generate Steps
+```bash
+generate-steps.bat
+```
+
+### Generate DTOs
+```bash
+dotnet run --project tests/ApiTestFramework.OpenApi.Cli -- --mode dto --swagger tests/ApiTestFramework.Clients/swagger/product-swagger.json --ns ApiTestFramework.Clients.ProductService --out ProductDtos.g.cs
+```
+
+### Generate Verb-Specific Test Scaffolds
+The test scaffolder creates NUnit stubs directly from documented OpenAPI responses and then refines them with HTTP-verb-specific functional hints.
+
+Generation rules:
+- every documented status code in swagger becomes its own scaffolded test case
+- the generator derives scenario intent from both HTTP verb and response code, for example `401` as security, `404` as missing resource, `409` as conflicting state, `503` as resilience or availability
+- response schemas from swagger are echoed in the assertion hint so generated tests prompt contract checks, not only status-code checks
+- request bodies are detected for both referenced schemas and inline or multipart definitions, so file-upload endpoints also get negative validation scaffolds
+
+Functional test design guidance baked into the scaffold:
+- success paths use representative valid data and expected business preconditions
+- negative paths target invalid input, missing resources, conflicting state, and unsupported content types when those responses are documented
+- security paths cover missing auth and permission failures when documented
+- resilience paths cover rate limiting and service unavailability when documented
+
+This aligns the scaffold with contract-based API functional testing and common ISTQB-style test design principles: equivalence classes, negative testing, authorization checks, and documented error handling.
+
+```bash
+generate-tests.bat
+```
+
+Single-service example:
+```bash
+dotnet run --project tests/ApiTestFramework.OpenApi.Cli -- --mode tests --swagger tests/ApiTestFramework.Clients/swagger/import-swagger.json --service Import --ns ApiTestFramework.Tests.Generated --out artifacts/generated-tests/ImportGeneratedTests.g.cs
+```
+
+## Configuration
+
+Test configuration is resolved in priority order (highest wins):
+
+1. **Consul KV** — `api-test-framework` key (when `TEST_Consul__Address` is set or `Consul.Address` in JSON is non-empty)
+2. **Environment variables** — prefix `TEST_`, double-underscore notation (e.g. `TEST_Services__AuthService__BaseUrl`)
+3. **`appsettings.test.json`** — local fallback, always present
+
+### Consul KV
+
+When Consul is available the framework reads a single JSON document from key `api-test-framework`.  
+To disable Consul entirely, set `"Consul": { "Address": "" }` in `appsettings.test.json` — the framework falls back to JSON-only automatically.
+
+**To add a new service:**
+1. Add an entry under `"Services"` in `appsettings.test.json` (fallback)
+2. Update the JSON payload in the `consul-init` entrypoint in `docker-compose.yml`
+
+No C# code changes required.
+
+### `appsettings.test.json` structure
+```json
+{
+  "Consul": {
+    "Address": "http://localhost:8500",
+    "KeyPrefix": "api-test-framework"
+  },
+  "Services": {
+    "AuthService":    { "BaseUrl": "http://localhost:5300" },
+    "ProductService": { "BaseUrl": "http://localhost:5100" },
+    "OrderService":   { "BaseUrl": "http://localhost:5200" },
+    "ImportService":  { "BaseUrl": "http://localhost:5400" }
+  },
+  "DefaultTimeoutSeconds": 30,
+  "RetryCount": 0
+}
 ```
 
 ## Key Framework Features
@@ -167,6 +271,65 @@ var product = await _productSteps.CreateProductAsync();
 var (order, productId) = await _orderSteps.CreateOrderWithProductAsync();
 ```
 
+### Per-Test Multi-User Token Isolation
+
+Every test runs under the global token set in `GlobalSetup`. When a test needs a different user (e.g. to verify role-based access or token ownership), use `UserScope` to register a fresh user and scope its token to the current test without affecting other tests running in parallel.
+
+`UserScope` is backed by `TestTokenContext` (`AsyncLocal<string?>`). Because `AsyncLocal<T>` propagates changes **down** into child continuations but **not back up** to the caller, the two-step pattern is required:
+
+```csharp
+// Step 1 — async: register the user (runs in a child async context)
+var auth = await _authSteps.RegisterUserAsync("Admin");
+
+// Step 2 — sync: enter the scope IN THIS METHOD'S execution context
+//   UserScope.FromAuthResponse is synchronous, so TestTokenContext.SetToken()
+//   runs here and is visible to all subsequent awaits in this test.
+await using var scope = UserScope.FromAuthResponse(auth);
+
+// All requests inside the scope use auth.Token.AccessToken
+var product = await _productSteps.CreateProductAsync();
+
+// Scope is restored to previous token automatically on dispose
+```
+
+> **Why not `await using var scope = await CreateUserScopeAsync()`?**
+> Calling `TokenScope.Use()` (which sets `TestTokenContext`) inside an async helper after an `await` runs in a child execution context. `AsyncLocal<T>` changes in a child context don't flow back to the parent, so the token would never be set in the test method's context. The two-step pattern avoids this.
+
+You can also override the token directly without creating a new user:
+```csharp
+// Scopes an existing token for the duration of the using block
+using var _ = UseToken("eyJhbGci...");
+```
+
+### OpenAPI → ServiceSteps Code Generator
+
+The framework can generate complete `*ServiceSteps.cs` files from any OpenAPI/swagger.json spec:
+
+```bat
+:: Regenerate all three service step files at once
+generate-steps.bat
+
+:: Or generate a single service
+dotnet run --project tests/ApiTestFramework.OpenApi.Cli -- ^
+  --swagger tests/ApiTestFramework.Clients/swagger/order-swagger.json ^
+  --service Order --dto Order ^
+  --ns ApiTestFramework.Steps.ServiceSteps.Generated ^
+  --dto-ns ApiTestFramework.Clients.OrderService ^
+  --out tests/ApiTestFramework.Steps/ServiceSteps/Generated/OrderServiceSteps.g.cs
+```
+
+**What the generator produces per endpoint:**
+- `GET /collection` → `List<T>` happy-path method asserting `200 OK`
+- `GET /resource/{id}` → `T` method
+- `POST` → `T` method asserting `201 Created` + `TryCreateAsync` raw-response overload
+- `PUT` / `DELETE` → typed method + `Try*Async` overload for negative-test scenarios
+- `[AllureStep]` annotation on every method
+- Constructor resolves `ApiClient` via `ContainerProvider`
+
+Generated files land in `tests/ApiTestFramework.Steps/ServiceSteps/Generated/` and are committed alongside hand-written steps as a reference/bootstrap. They can be used directly or promoted to hand-written steps by copying to the `ServiceSteps/` folder and customising.
+
+The offline swagger specs are in `tests/ApiTestFramework.Clients/swagger/`. To refresh them from live services, run `scripts/refresh-swagger.ps1` (services must be running).
+
 ### DTO Validation
 ```csharp
 // Full DTO comparison
@@ -183,5 +346,21 @@ response.ShouldMatchDtoExcluding(expectedProduct,
 | Suite | Tests | Description |
 |-------|-------|-------------|
 | AuthService | 7 | Register, login, duplicate user, wrong password, unauthorized access |
-| ProductService | 7 | Create, get, get all, update, delete (valid & invalid scenarios) |
+| ProductService (CRUD) | 7 | Create, get, get all, update, delete (valid & invalid scenarios) |
+| Framework (Token Isolation) | 6 | Per-test user isolation, token scoping, scope restore, `UseToken` override |
 | OrderService | 8 | Create (valid & invalid product), get, get all, update, delete, full lifecycle |
+| ImportService | 3 | CSV batch import, progress tracking, and not-found status checks |
+| **Total** | **31** | |
+
+## CI/CD
+
+The `Jenkinsfile` defines a declarative pipeline that:
+
+1. **Checkout** — clones the repository
+2. **Build** — `dotnet build` with `Release` configuration
+3. **Start Services** — `docker compose up -d --build --wait` (brings up SQL Server, Redis, Consul + all microservices; waits for all healthchecks)
+4. **Run Tests** — `dotnet test` with TRX logger; injects `TEST_Consul__Address=http://consul:8500` so the framework reads service URLs from Consul KV
+5. **Publish Results** — publishes the TRX report as a Jenkins test result
+6. **Teardown** — `docker compose down -v` always runs (post step)
+
+Each CI run uses an isolated Docker Compose project name (`api-test-${BUILD_NUMBER}`) to allow parallel builds without port conflicts.

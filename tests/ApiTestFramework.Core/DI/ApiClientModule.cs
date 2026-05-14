@@ -18,17 +18,17 @@ public class ApiClientModule : Module
 
     protected override void Load(ContainerBuilder builder)
     {
-        builder.Register(c => new ApiClient(_config.ProductService.BaseUrl, _config.ProductService.Name))
-            .Named<ApiClient>("ProductService")
-            .SingleInstance();
+        foreach (var (name, serviceConfig) in _config.Services)
+        {
+            // Capture loop variables for the closure
+            var serviceName = name;
+            var baseUrl = serviceConfig.BaseUrl;
+            var retryCount = _config.RetryCount;
 
-        builder.Register(c => new ApiClient(_config.OrderService.BaseUrl, _config.OrderService.Name))
-            .Named<ApiClient>("OrderService")
-            .SingleInstance();
-
-        builder.Register(c => new ApiClient(_config.AuthService.BaseUrl, _config.AuthService.Name))
-            .Named<ApiClient>("AuthService")
-            .SingleInstance();
+            builder.Register(_ => new ApiClient(baseUrl, serviceName) { RetryCount = retryCount })
+                .Named<ApiClient>(serviceName)
+                .SingleInstance();
+        }
 
         builder.RegisterInstance(_config).AsSelf().SingleInstance();
     }

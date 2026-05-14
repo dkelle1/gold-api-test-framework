@@ -1,7 +1,5 @@
-using System.Net;
 using Allure.NUnit.Attributes;
 using ApiTestFramework.Clients.OrderService;
-using ApiTestFramework.Core.Assertions;
 using ApiTestFramework.Core.Client;
 using ApiTestFramework.Core.Constants;
 using ApiTestFramework.Core.DI;
@@ -33,23 +31,25 @@ public class OrderServiceSteps
     /// This is the main "prepare" method for tests that need an existing order.
     /// </summary>
     [AllureStep("Create order with new product (full setup)")]
-    public async Task<(Order Order, int ProductId)> CreateOrderWithProductAsync()
+    public async Task<(RestResponse<Order> OrderResponse, int ProductId)> CreateOrderWithProductAsync()
     {
         // Step 1: Create a product first (dependency)
-        var productId = await _productSteps.CreateProductAndReturnIdAsync();
+        var productResponse = await _productSteps.CreateProductAsync();
+        var product = productResponse.Data
+            ?? throw new InvalidOperationException("ProductService returned empty response body while preparing order test data.");
 
         // Step 2: Create order for that product
-        var createRequest = OrderDataGenerator.GenerateCreateOrderRequest(productId);
-        var order = await CreateOrderAsync(createRequest);
+        var createRequest = OrderDataGenerator.GenerateCreateOrderRequest(product.Id);
+        var orderResponse = await CreateOrderAsync(createRequest);
 
-        return (order, productId);
+        return (orderResponse, product.Id);
     }
 
     /// <summary>
     /// Creates an order from a specific request.
     /// </summary>
     [AllureStep("Create an order")]
-    public async Task<Order> CreateOrderAsync(CreateOrderRequest createRequest)
+    public async Task<RestResponse<Order>> CreateOrderAsync(CreateOrderRequest createRequest)
     {
         _logger.Information("Creating order for ProductId: {ProductId}, Customer: {Customer}",
             createRequest.ProductId, createRequest.CustomerName);
@@ -57,11 +57,7 @@ public class OrderServiceSteps
         var response = await _client.SendAsync<Order>(
             RequestFactory.Post(OrderServiceRoutes.Base, createRequest));
 
-        response.ShouldHaveStatusCode(HttpStatusCode.Created);
-        var order = response.ShouldHaveData();
-
-        _logger.Information("Created order with Id: {Id}", order.Id);
-        return order;
+        return response;
     }
 
     /// <summary>
@@ -136,4 +132,26 @@ public class OrderServiceSteps
 
         return response;
     }
+
+    // ── Negative-path helpers (raw RestResponse for status-code assertions) ─────
+
+    /// <summary>
+    /// Attempts to create an order and returns the raw response.
+    /// Use for negative test scenarios (invalid product, validation errors).
+    /// </summary>
+    [AllureStep("Attempt to create an order (raw response)")]
+    public async Task<RestResponse<Order>> TryCreateOrderAsync(CreateOrderRequest createRequest)
+        => await _client.SendAsync<Order>(RequestFactory.Post(OrderServiceRoutes.Base, createRequest));
+
+    /// <summary>
+    /// Attempts to update an order and returns the raw response.
+    /// </summary>
+    [AllureStep("Attempt to update order with Id: {id} (raw response)")]
+    public async Task<RestResponse<Order>> TryUpdateOrderAsync(int id, UpdateOrderRequest updateRequest)
+        => await _client.SendAsync<Order>(
+            RequestBuilder.Create()
+                .WithMethod(Method.Put)
+                .WithPath(OrderServiceRoutes.ById)
+                .WithPathSegment("id", id)
+                .WithBody(updateRequest));
 }

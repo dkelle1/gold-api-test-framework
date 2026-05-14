@@ -61,9 +61,11 @@ pipeline {
                 sh """
                     mkdir -p ${TEST_RESULTS_DIR}
                     mkdir -p ${ALLURE_RESULTS_DIR}
-                    export TEST_AuthService__BaseUrl=http://auth-service:8080
-                    export TEST_ProductService__BaseUrl=http://product-service:8080
-                    export TEST_OrderService__BaseUrl=http://order-service:8080
+                    export TEST_Services__AuthService__BaseUrl=http://auth-service:8080
+                    export TEST_Services__ProductService__BaseUrl=http://product-service:8080
+                    export TEST_Services__OrderService__BaseUrl=http://order-service:8080
+                    export TEST_Services__ImportService__BaseUrl=http://import-service:8080
+                    export TEST_Consul__Address=http://consul:8500
                     dotnet test tests/ApiTestFramework.Tests/ApiTestFramework.Tests.csproj \\
                         -c Release --no-build \\
                         --logger "trx;LogFileName=results.trx" \\

@@ -57,9 +57,10 @@ Request DTOs (body) remain **flat**: `CreateProductRequest`, `CreateOrderRequest
 ```
 ApiTestFramework.Core    — infrastructure (ApiClient, RequestBuilder, TokenProvider, DI, Assertions, Config, Logging)
 ApiTestFramework.Clients — NSwag-generated DTOs and HTTP clients (do not edit by hand)
-ApiTestFramework.Steps   — reusable steps (AuthServiceSteps, ProductServiceSteps, OrderServiceSteps) + DataGenerators
-ApiTestFramework.Tests   — NUnit test fixtures (AuthCrudTests, ProductCrudTests, OrderCrudTests)
-ApiTestFramework.OpenApi — OpenAPI spec parsing + test case scaffolding for future auto-generation
+ApiTestFramework.Steps       — reusable steps (AuthServiceSteps, ProductServiceSteps, OrderServiceSteps) + DataGenerators + UserScope
+ApiTestFramework.Tests       — NUnit test fixtures (AuthCrudTests, ProductCrudTests, MultiUserProductTests, OrderCrudTests) — 28 tests
+ApiTestFramework.OpenApi     — OpenAPI spec parsing, TestCaseScaffolder, StepsGenerator (generates *ServiceSteps.cs from swagger)
+ApiTestFramework.OpenApi.Cli — CLI tool (generate-steps.exe) wrapping StepsGenerator
 ```
 
 ### Key Classes
@@ -68,7 +69,10 @@ ApiTestFramework.OpenApi — OpenAPI spec parsing + test case scaffolding for fu
 - **`RequestBuilder`** — fluent builder: `RequestBuilder.Create().WithMethod(Method.Post).WithPath("/api/...").WithBody(dto)`
 - **`RequestFactory`** — shortcuts: `RequestFactory.Get(path)`, `RequestFactory.Post(path, body)`, etc.
 - **`TokenProvider`** — static holder for JWT; set once in `GlobalSetup.cs`, auto-injected into every request
-- **`BaseTest`** — base class for all test fixtures; inherit from it
+- **`TestTokenContext`** — `AsyncLocal<string?>` per-test token; overrides `TokenProvider` for the current async execution context
+- **`TokenScope`** — synchronous disposable that sets/restores `TestTokenContext`; call in the test method (not inside an async helper) to ensure correct `AsyncLocal` propagation
+- **`UserScope`** — registers a fresh user and enters a `TokenScope`; use `UserScope.FromAuthResponse(auth)` synchronously after awaiting the registration
+- **`BaseTest`** — base class for all test fixtures; inherit from it; exposes `UseToken(string)` helper
 - **`ResponseAssertions`** — extension methods: `.ShouldHaveStatusCode(HttpStatusCode.OK)`, `.ShouldMatchDto(expected)`, `.ShouldHaveData()`
 - **`ContainerProvider`** — Autofac DI; use `ContainerProvider.ResolveNamed<ApiClient>("ProductService")`
 
@@ -139,16 +143,56 @@ DTOs in `tests/ApiTestFramework.Clients/Dtos/` are **generated** from OpenAPI sp
 - To regenerate clients: run `generate-clients.bat` (requires `dotnet tool install -g NSwag.ConsoleCore`)
 - To refresh swagger from live services: run `scripts/refresh-swagger.ps1` (services must be running)
 
+### Per-Test Multi-User Token Isolation
+
+`ApiClient.InjectBearerToken` priority chain (highest wins):
+1. Explicit `Authorization` header on the request
+2. `TestTokenContext` — `AsyncLocal<string?>` set via `TokenScope.Use()` / `UserScope`
+3. Global `TokenProvider`
+
+**Correct pattern** (two-step — `TokenScope.Use` must run in the test method's context):
+```csharp
+var auth = await _authSteps.RegisterUserAsync("Admin");  // async OK
+await using var scope = UserScope.FromAuthResponse(auth); // sync — sets AsyncLocal in THIS context
+var product = await _productSteps.CreateProductAsync();   // uses auth.Token
+```
+
+**Wrong pattern** (broken — `TokenScope.Use` runs in a child async context and is invisible to the test):
+```csharp
+// DO NOT DO THIS
+await using var scope = await _authSteps.CreateUserScopeAsync();
+```
+
+### OpenAPI → ServiceSteps Generator
+
+Generate a full `*ServiceSteps.cs` from any swagger.json:
+```bat
+generate-steps.bat           :: regenerates all three service step files
+```
+or:
+```
+dotnet run --project tests/ApiTestFramework.OpenApi.Cli -- \
+  --swagger <path> --service <name> --dto <type> \
+  --ns <namespace> --dto-ns <dto-namespace> [--out <file>]
+```
+Generated files land in `tests/ApiTestFramework.Steps/ServiceSteps/Generated/`.
+
 ### Configuration
 
 Test configuration is in `tests/ApiTestFramework.Tests/appsettings.test.json`:
 ```json
 {
-  "AuthService":    { "BaseUrl": "http://localhost:5300" },
-  "ProductService": { "BaseUrl": "http://localhost:5100" },
-  "OrderService":   { "BaseUrl": "http://localhost:5200" }
+  "Consul": { "Address": "http://localhost:8500", "KeyPrefix": "api-test-framework" },
+  "Services": {
+    "AuthService":    { "BaseUrl": "http://localhost:5300" },
+    "ProductService": { "BaseUrl": "http://localhost:5100" },
+    "OrderService":   { "BaseUrl": "http://localhost:5200" }
+  },
+  "DefaultTimeoutSeconds": 30,
+  "RetryCount": 0
 }
 ```
+Consul KV (when reachable) overrides the JSON values. Set `TEST_Consul__Address=http://consul:8500` in CI.
 
 ### Running Tests
 
@@ -162,14 +206,21 @@ Then: `dotnet test tests/ApiTestFramework.Tests/`
 
 ---
 
-## Future: Auto-Generated Tests from OpenAPI
+## Code Generation from OpenAPI
 
-The `ApiTestFramework.OpenApi` project provides infrastructure to:
-1. **Parse** swagger.json → `OpenApiSpecLoader.LoadFromFile(path)` + `GetEndpoints(doc)`
-2. **Scaffold** test cases → `TestCaseScaffolder.GenerateTestCases(endpoints, serviceName)`
-3. **Generate** C# test code → `TestCaseScaffolder.GenerateCSharpTestClass(cases, namespace)`
+The `ApiTestFramework.OpenApi` project provides two layers of generation:
 
-Use this to bootstrap tests for new endpoints by reading the swagger.json of a service.
+### 1. ServiceSteps generator (implemented)
+- `OpenApiSpecLoader.LoadFromFile(path)` + `GetEndpoints(doc)` — parse swagger.json
+- `StepsGenerator.GenerateStepsClass(endpoints, serviceName, responseDto, ns, dtoNs)` — emit a full `*ServiceSteps.cs`
+- CLI: `tests/ApiTestFramework.OpenApi.Cli` (`generate-steps.exe`)
+- Batch script: `generate-steps.bat` in the repo root
+
+### 2. Test-case scaffolder (infrastructure ready)
+- `TestCaseScaffolder.GenerateTestCases(endpoints, serviceName)` — derive happy-path / 401 / 404 / 400 test cases
+- `TestCaseScaffolder.GenerateCSharpTestClass(cases, namespace)` — emit `Assert.Inconclusive` stubs
+
+Use `StepsGenerator` first to get working step code, then `TestCaseScaffolder` to scaffold test bodies.
 
 ---
 
@@ -181,3 +232,19 @@ Use this to bootstrap tests for new endpoints by reading the swagger.json of a s
 - Every step is annotated with `[AllureStep]` for Allure report hierarchy
 - Repository pattern: interface + SQL/Redis implementation; Redis failures are silently swallowed
 - Migrations: use EF Core `Database.EnsureCreated()` for dev/test; add migration commands for production
+
+---
+
+## Team Delivery Workflow
+
+Use the workflow skill in `.github/skills/pr-jenkins-workflow/SKILL.md` as the default process.
+Use `scripts/jenkins-pr-job-runbook.md` for Jenkins REST API job create/trigger details.
+
+Required sequence:
+
+1. Implement requested changes.
+2. Open or update GitHub PR.
+3. Run Jenkins PR validation job.
+4. Document what changed and test outcome.
+5. Update changelog.
+6. Leave final merge as a manual user action.

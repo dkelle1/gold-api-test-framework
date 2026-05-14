@@ -1,7 +1,5 @@
-using System.Net;
 using Allure.NUnit.Attributes;
 using ApiTestFramework.Clients.ProductService;
-using ApiTestFramework.Core.Assertions;
 using ApiTestFramework.Core.Client;
 using ApiTestFramework.Core.Constants;
 using ApiTestFramework.Core.DI;
@@ -30,7 +28,7 @@ public class ProductServiceSteps
     /// Creates a product with random data and returns the created product.
     /// </summary>
     [AllureStep("Create a product with random data")]
-    public async Task<Product> CreateProductAsync()
+    public async Task<RestResponse<Product>> CreateProductAsync()
     {
         var request = ProductDataGenerator.GenerateCreateProductRequest();
         return await CreateProductAsync(request);
@@ -40,18 +38,14 @@ public class ProductServiceSteps
     /// Creates a product from a specific request and returns the created product.
     /// </summary>
     [AllureStep("Create a product")]
-    public async Task<Product> CreateProductAsync(CreateProductRequest createRequest)
+    public async Task<RestResponse<Product>> CreateProductAsync(CreateProductRequest createRequest)
     {
         _logger.Information("Creating product: {Name}", createRequest.Name);
 
         var response = await _client.SendAsync<Product>(
             RequestFactory.Post(ProductServiceRoutes.Base, createRequest));
 
-        response.ShouldHaveStatusCode(HttpStatusCode.Created);
-        var product = response.ShouldHaveData();
-
-        _logger.Information("Created product with Id: {Id}", product.Id);
-        return product;
+        return response;
     }
 
     /// <summary>
@@ -112,13 +106,36 @@ public class ProductServiceSteps
         return response;
     }
 
+    // ── Negative-path helpers (raw RestResponse for status-code assertions) ─────
+
     /// <summary>
-    /// Creates a product and returns only the Id — useful for setup steps.
+    /// Attempts to create a product and returns the raw response.
+    /// Use for negative test scenarios (validation errors, auth failures).
     /// </summary>
-    [AllureStep("Create product and return Id")]
-    public async Task<int> CreateProductAndReturnIdAsync()
-    {
-        var product = await CreateProductAsync();
-        return product.Id;
-    }
+    [AllureStep("Attempt to create a product (raw response)")]
+    public async Task<RestResponse<Product>> TryCreateProductAsync(CreateProductRequest createRequest)
+        => await _client.SendAsync<Product>(RequestFactory.Post(ProductServiceRoutes.Base, createRequest));
+
+    /// <summary>
+    /// Attempts to update a product and returns the raw response.
+    /// </summary>
+    [AllureStep("Attempt to update product with Id: {id} (raw response)")]
+    public async Task<RestResponse<Product>> TryUpdateProductAsync(int id, UpdateProductRequest updateRequest)
+        => await _client.SendAsync<Product>(
+            RequestBuilder.Create()
+                .WithMethod(Method.Put)
+                .WithPath(ProductServiceRoutes.ById)
+                .WithPathSegment("id", id)
+                .WithBody(updateRequest));
+
+    /// <summary>
+    /// Attempts to delete a product and returns the raw response.
+    /// </summary>
+    [AllureStep("Attempt to delete product with Id: {id} (raw response)")]
+    public async Task<RestResponse> TryDeleteProductAsync(int id)
+        => await _client.SendAsync(
+            RequestBuilder.Create()
+                .WithMethod(Method.Delete)
+                .WithPath(ProductServiceRoutes.ById)
+                .WithPathSegment("id", id));
 }

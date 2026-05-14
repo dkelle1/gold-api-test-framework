@@ -19,9 +19,8 @@ public class OrderCrudTests : BaseTest
     private OrderServiceSteps _orderSteps = null!;
     private ProductServiceSteps _productSteps = null!;
 
-    public override void OneTimeSetUp()
+    protected override void OnFixtureSetUp()
     {
-        base.OneTimeSetUp();
         _orderSteps = new OrderServiceSteps();
         _productSteps = new ProductServiceSteps();
     }
@@ -32,13 +31,17 @@ public class OrderCrudTests : BaseTest
     public async Task CreateOrder_WithValidProduct_ReturnsCreated()
     {
         // Arrange — create a product in ProductService first
-        var product = await _productSteps.CreateProductAsync();
+        var productResponse = await _productSteps.CreateProductAsync();
+        productResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var product = productResponse.ShouldHaveData();
         var request = OrderDataGenerator.GenerateCreateOrderRequest(product.Id);
 
         // Act
-        var order = await _orderSteps.CreateOrderAsync(request);
+        var orderResponse = await _orderSteps.CreateOrderAsync(request);
 
         // Assert
+        orderResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var order = orderResponse.ShouldHaveData();
         order.Id.Should().BeGreaterThan(0);
         order.Product.ProductId.Should().Be(product.Id);
         order.Product.ProductName.Should().Be(product.Name);
@@ -55,17 +58,13 @@ public class OrderCrudTests : BaseTest
     public async Task CreateOrder_WithInvalidProduct_ReturnsBadRequest()
     {
         // Arrange
-        var request = OrderDataGenerator.GenerateCreateOrderRequest(productId: 99999);
+        var request = OrderDataGenerator.GenerateCreateOrderRequest(productId: NonExistentId);
 
         // Act
-        var response = await _orderSteps.GetOrderAsync(0); // This will just get a 404
-        // Better: use the raw client to post with invalid product
-        var apiClient = ApiTestFramework.Core.DI.ContainerProvider.ResolveNamed<ApiTestFramework.Core.Client.ApiClient>("OrderService");
-        var rawResponse = await apiClient.SendAsync(
-            ApiTestFramework.Core.Client.RequestFactory.Post("/api/orders", request));
+        var response = await _orderSteps.TryCreateOrderAsync(request);
 
         // Assert
-        rawResponse.ShouldHaveStatusCode(HttpStatusCode.BadRequest);
+        response.ShouldHaveStatusCode(HttpStatusCode.BadRequest);
     }
 
     [Test]
@@ -74,7 +73,9 @@ public class OrderCrudTests : BaseTest
     public async Task GetOrder_WithValidId_ReturnsOrder()
     {
         // Arrange — full setup: create product + order
-        var (order, _) = await _orderSteps.CreateOrderWithProductAsync();
+        var (orderResponse, _) = await _orderSteps.CreateOrderWithProductAsync();
+        orderResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var order = orderResponse.ShouldHaveData();
 
         // Act
         var response = await _orderSteps.GetOrderAsync(order.Id);
@@ -90,7 +91,7 @@ public class OrderCrudTests : BaseTest
     public async Task GetOrder_WithInvalidId_ReturnsNotFound()
     {
         // Act
-        var response = await _orderSteps.GetOrderAsync(99999);
+        var response = await _orderSteps.GetOrderAsync(NonExistentId);
 
         // Assert
         response.ShouldHaveStatusCode(HttpStatusCode.NotFound);
@@ -102,7 +103,8 @@ public class OrderCrudTests : BaseTest
     public async Task GetAllOrders_ReturnsOrderList()
     {
         // Arrange
-        await _orderSteps.CreateOrderWithProductAsync();
+        var (createResponse, _) = await _orderSteps.CreateOrderWithProductAsync();
+        createResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
 
         // Act
         var response = await _orderSteps.GetAllOrdersAsync();
@@ -119,7 +121,9 @@ public class OrderCrudTests : BaseTest
     public async Task UpdateOrder_WithValidData_ReturnsUpdated()
     {
         // Arrange
-        var (order, _) = await _orderSteps.CreateOrderWithProductAsync();
+        var (createResponse, _) = await _orderSteps.CreateOrderWithProductAsync();
+        createResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var order = createResponse.ShouldHaveData();
         var updateRequest = new UpdateOrderRequest
         {
             CustomerName = "Updated Customer Name",
@@ -142,7 +146,9 @@ public class OrderCrudTests : BaseTest
     public async Task DeleteOrder_WithValidId_ReturnsNoContent()
     {
         // Arrange
-        var (order, _) = await _orderSteps.CreateOrderWithProductAsync();
+        var (createResponse, _) = await _orderSteps.CreateOrderWithProductAsync();
+        createResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var order = createResponse.ShouldHaveData();
 
         // Act
         var deleteResponse = await _orderSteps.DeleteOrderAsync(order.Id);
@@ -161,11 +167,15 @@ public class OrderCrudTests : BaseTest
     public async Task OrderLifecycle_FullFlow_Succeeds()
     {
         // Create product
-        var product = await _productSteps.CreateProductAsync();
+        var productResponse = await _productSteps.CreateProductAsync();
+        productResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var product = productResponse.ShouldHaveData();
 
         // Create order
         var createRequest = OrderDataGenerator.GenerateCreateOrderRequest(product.Id);
-        var order = await _orderSteps.CreateOrderAsync(createRequest);
+        var orderResponse = await _orderSteps.CreateOrderAsync(createRequest);
+        orderResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var order = orderResponse.ShouldHaveData();
         order.Status.Should().Be(OrderStatus.Pending);
 
         // Update to Confirmed

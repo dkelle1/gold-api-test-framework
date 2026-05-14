@@ -21,9 +21,8 @@ public class AuthCrudTests : BaseTest
 {
     private AuthServiceSteps _authSteps = null!;
 
-    public override void OneTimeSetUp()
+    protected override void OnFixtureSetUp()
     {
-        base.OneTimeSetUp();
         _authSteps = new AuthServiceSteps();
     }
 
@@ -36,9 +35,11 @@ public class AuthCrudTests : BaseTest
         var request = AuthDataGenerator.GenerateRegisterRequest();
 
         // Act
-        var authResponse = await _authSteps.RegisterUserAsync(request);
+        var response = await _authSteps.RegisterUserAsync(request);
 
         // Assert
+        response.ShouldHaveStatusCode(HttpStatusCode.Created);
+        var authResponse = response.ShouldHaveData();
         authResponse.Token.AccessToken.Should().NotBeNullOrEmpty();
         authResponse.User.Username.Should().Be(request.Username);
         authResponse.User.Email.Should().Be(request.Email);
@@ -53,14 +54,17 @@ public class AuthCrudTests : BaseTest
     {
         // Arrange — register a user first
         var registerRequest = AuthDataGenerator.GenerateRegisterRequest();
-        await _authSteps.RegisterUserAsync(registerRequest);
+        var registerResponse = await _authSteps.RegisterUserAsync(registerRequest);
+        registerResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
 
         // Act
         var loginRequest = AuthDataGenerator.GenerateLoginRequest(
             registerRequest.Username, registerRequest.Password);
-        var authResponse = await _authSteps.LoginAsync(loginRequest);
+        var loginResponse = await _authSteps.LoginAsync(loginRequest);
 
         // Assert
+        loginResponse.ShouldHaveStatusCode(HttpStatusCode.OK);
+        var authResponse = loginResponse.ShouldHaveData();
         authResponse.Token.AccessToken.Should().NotBeNullOrEmpty();
         authResponse.User.Username.Should().Be(registerRequest.Username);
     }
@@ -72,7 +76,8 @@ public class AuthCrudTests : BaseTest
     {
         // Arrange — register a user first
         var registerRequest = AuthDataGenerator.GenerateRegisterRequest();
-        await _authSteps.RegisterUserAsync(registerRequest);
+        var registerResponse = await _authSteps.RegisterUserAsync(registerRequest);
+        registerResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
 
         // Act
         var loginRequest = AuthDataGenerator.GenerateLoginRequest(
@@ -104,7 +109,8 @@ public class AuthCrudTests : BaseTest
     {
         // Arrange — register a user
         var registerRequest = AuthDataGenerator.GenerateRegisterRequest();
-        await _authSteps.RegisterUserAsync(registerRequest);
+        var registerResponse = await _authSteps.RegisterUserAsync(registerRequest);
+        registerResponse.ShouldHaveStatusCode(HttpStatusCode.Created);
 
         // Act — try to register with the same username
         var duplicateRequest = new RegisterRequest
@@ -146,13 +152,14 @@ public class AuthCrudTests : BaseTest
     [AllureDescription("Verify that accessing ProductService without token returns 401")]
     public async Task ProductService_WithoutToken_ReturnsUnauthorized()
     {
-        // Act — call ProductService without Bearer token
+        // Act — override the Authorization header with an empty value to prevent
+        // ApiClient’s auto-injection, simulating a request with no valid token.
         var client = ContainerProvider.ResolveNamed<ApiClient>("ProductService");
         var response = await client.SendAsync(
             RequestBuilder.Create()
                 .WithMethod(RestSharp.Method.Get)
                 .WithPath(ProductServiceRoutes.Base)
-                .WithHeader("Authorization", "")); // Explicitly clear auth header
+                .WithHeader("Authorization", ""));
 
         // Assert
         response.ShouldHaveStatusCode(HttpStatusCode.Unauthorized);

@@ -52,14 +52,15 @@ public static class OpenApiSpecLoader
                 var responses = operation.Responses?
                     .ToDictionary(
                         r => int.TryParse(r.Key, out var code) ? code : 0,
-                        r => r.Value.Content?.FirstOrDefault().Value?.Schema?.Reference?.Id)
+                        r => ResolveSchemaTypeName(r.Value.Content?.FirstOrDefault().Value?.Schema))
                     ?? new Dictionary<int, string?>();
 
                 var requiresAuth = operation.Security?.Count > 0
                     || document.SecurityRequirements?.Count > 0;
 
-                var requestBodySchema = operation.RequestBody?.Content
-                    ?.FirstOrDefault().Value?.Schema?.Reference?.Id;
+                var requestBodySchema = ResolveSchemaTypeName(
+                    operation.RequestBody?.Content?.FirstOrDefault().Value?.Schema);
+                var hasRequestBody = operation.RequestBody is not null;
 
                 result.Add(new EndpointDefinition(
                     path,
@@ -67,6 +68,7 @@ public static class OpenApiSpecLoader
                     operation.OperationId ?? $"{operationType}_{path.Replace("/", "_").Trim('_')}",
                     operation.Tags?.FirstOrDefault()?.Name,
                     requestBodySchema,
+                    hasRequestBody,
                     parameters,
                     responses,
                     requiresAuth));
@@ -74,5 +76,23 @@ public static class OpenApiSpecLoader
         }
 
         return result;
+    }
+
+    private static string? ResolveSchemaTypeName(OpenApiSchema? schema)
+    {
+        if (schema is null)
+            return null;
+
+        if (schema.Reference?.Id is not null)
+            return schema.Reference.Id;
+
+        if (schema.Type == "array")
+        {
+            var itemRef = schema.Items?.Reference?.Id;
+            if (!string.IsNullOrWhiteSpace(itemRef))
+                return $"List<{itemRef}>";
+        }
+
+        return null;
     }
 }

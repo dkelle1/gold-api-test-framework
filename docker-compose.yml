@@ -1,10 +1,46 @@
 services:
 
+  # NOTE: container_name is intentionally omitted across services.
+  # This keeps docker compose projects isolated in Jenkins where multiple PR jobs
+  # can run in parallel without global container-name collisions.
+
   # ── Infrastructure ──────────────────────────────────────────────────────────
+
+  consul:
+    image: hashicorp/consul:1.18
+    ports:
+      - "8500:8500"   # HTTP API + UI
+      - "8600:8600/udp" # DNS
+    command: "agent -dev -client=0.0.0.0 -ui"
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 5s
+      retries: 10
+      start_period: 10s
+      timeout: 3s
+
+  # Runs once after Consul is healthy; registers all service base-urls in KV.
+  # Stays alive (tail -f /dev/null) so docker compose up --wait doesn't treat
+  # the expected exit-0 as a failure; healthcheck signals when seeding is done.
+  consul-init:
+    image: curlimages/curl:8.7.1
+    depends_on:
+      consul:
+        condition: service_healthy
+    entrypoint:
+      - sh
+      - -c
+      - "curl -sS -X PUT http://consul:8500/v1/kv/api-test-framework --data-binary '{\"Services\":{\"AuthService\":{\"BaseUrl\":\"http://auth-service:8080\"},\"ProductService\":{\"BaseUrl\":\"http://product-service:8080\"},\"OrderService\":{\"BaseUrl\":\"http://order-service:8080\"},\"ImportService\":{\"BaseUrl\":\"http://import-service:8080\"}},\"DefaultTimeoutSeconds\":30,\"RetryCount\":0}' && echo done > /tmp/seeded && echo 'consul-init: KV seeding done' && tail -f /dev/null"
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/seeded"]
+      interval: 2s
+      retries: 30
+      start_period: 5s
+      timeout: 2s
+    restart: "no"
 
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: sqlserver
     environment:
       SA_PASSWORD: "ApiTest_Sa@2024"
       ACCEPT_EULA: "Y"
@@ -22,7 +58,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: redis
     ports:
       - "6379:6379"
     volumes:
@@ -39,7 +74,6 @@ services:
     build:
       context: .
       dockerfile: src/AuthService/Dockerfile
-    container_name: auth-service
     ports:
       - "5300:8080"
     environment:
@@ -56,6 +90,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      consul:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8080' 2>/dev/null || exit 1"]
       interval: 10s
@@ -67,7 +103,6 @@ services:
     build:
       context: .
       dockerfile: src/ProductService/Dockerfile
-    container_name: product-service
     ports:
       - "5100:8080"
     environment:
@@ -83,6 +118,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      consul:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8080' 2>/dev/null || exit 1"]
       interval: 10s
@@ -94,7 +131,6 @@ services:
     build:
       context: .
       dockerfile: src/OrderService/Dockerfile
-    container_name: order-service
     ports:
       - "5200:8080"
     environment:
@@ -111,7 +147,34 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      consul:
+        condition: service_healthy
       product-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8080' 2>/dev/null || exit 1"]
+      interval: 10s
+      retries: 60
+      start_period: 180s
+      timeout: 5s
+
+  import-service:
+    build:
+      context: .
+      dockerfile: src/ImportService/Dockerfile
+    ports:
+      - "5400:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=ImportServiceDb;User Id=sa;Password=ApiTest_Sa@2024;TrustServerCertificate=True"
+      Jwt__SecretKey: "ApiTestFramework_SuperSecretKey_ForDevelopment_2024_MinLength32!"
+      Jwt__Issuer: "ApiTestFramework.AuthService"
+      Jwt__Audience: "ApiTestFramework.Services"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      consul:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8080' 2>/dev/null || exit 1"]
