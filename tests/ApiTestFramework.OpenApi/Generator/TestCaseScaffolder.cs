@@ -10,18 +10,12 @@ public record TestCaseDefinition(
     string TestName,
     string ServiceName,
     EndpointDefinition Endpoint,
-    TestScenario Scenario,
+    string Scenario,
     int ExpectedStatusCode,
-    string Description);
-
-public enum TestScenario
-{
-    HappyPath,
-    NotFound,
-    Unauthorized,
-    BadRequest,
-    Conflict
-}
+    string Description,
+    string ArrangeHint,
+    string AssertHint,
+    string Category);
 
 /// <summary>
 /// Generates <see cref="TestCaseDefinition"/> objects from parsed OpenAPI endpoints,
@@ -30,8 +24,8 @@ public enum TestScenario
 public static class TestCaseScaffolder
 {
     /// <summary>
-    /// Generates test case definitions for each endpoint covering:
-    /// happy path, auth, not-found (id-based), and bad-request (POST/PUT) scenarios.
+    /// Generates test case definitions directly from documented response codes in the OpenAPI contract.
+    /// Scenario naming and hints are refined using HTTP verb semantics and functional API testing heuristics.
     /// </summary>
     public static IReadOnlyList<TestCaseDefinition> GenerateTestCases(
         IReadOnlyList<EndpointDefinition> endpoints,
@@ -41,55 +35,7 @@ public static class TestCaseScaffolder
 
         foreach (var endpoint in endpoints)
         {
-            // Happy path — first 2xx response
-            var successCode = endpoint.Responses.Keys.FirstOrDefault(k => k is >= 200 and < 300);
-            if (successCode > 0)
-            {
-                cases.Add(new TestCaseDefinition(
-                    TestName: BuildTestName(endpoint, TestScenario.HappyPath),
-                    ServiceName: serviceName,
-                    Endpoint: endpoint,
-                    Scenario: TestScenario.HappyPath,
-                    ExpectedStatusCode: successCode,
-                    Description: $"{endpoint.Method} {endpoint.Path} — returns {successCode}"));
-            }
-
-            // Unauthorized — endpoint requires auth
-            if (endpoint.RequiresAuth)
-            {
-                cases.Add(new TestCaseDefinition(
-                    TestName: BuildTestName(endpoint, TestScenario.Unauthorized),
-                    ServiceName: serviceName,
-                    Endpoint: endpoint,
-                    Scenario: TestScenario.Unauthorized,
-                    ExpectedStatusCode: 401,
-                    Description: $"{endpoint.Method} {endpoint.Path} without token — returns 401"));
-            }
-
-            // Not Found — endpoints with path parameter {id}
-            if (endpoint.Path.Contains("{id", StringComparison.OrdinalIgnoreCase)
-                && endpoint.Method != "POST")
-            {
-                cases.Add(new TestCaseDefinition(
-                    TestName: BuildTestName(endpoint, TestScenario.NotFound),
-                    ServiceName: serviceName,
-                    Endpoint: endpoint,
-                    Scenario: TestScenario.NotFound,
-                    ExpectedStatusCode: 404,
-                    Description: $"{endpoint.Method} {endpoint.Path} with invalid id — returns 404"));
-            }
-
-            // Bad Request — POST/PUT with request body
-            if (endpoint.Method is "POST" or "PUT" && endpoint.RequestBodySchema is not null)
-            {
-                cases.Add(new TestCaseDefinition(
-                    TestName: BuildTestName(endpoint, TestScenario.BadRequest),
-                    ServiceName: serviceName,
-                    Endpoint: endpoint,
-                    Scenario: TestScenario.BadRequest,
-                    ExpectedStatusCode: 400,
-                    Description: $"{endpoint.Method} {endpoint.Path} with invalid body — returns 400"));
-            }
+            cases.AddRange(BuildResponseDrivenCases(endpoint, serviceName));
         }
 
         return cases;
@@ -113,6 +59,7 @@ public static class TestCaseScaffolder
         sb.AppendLine("// DO NOT EDIT — regenerate via TestCaseScaffolder");
         sb.AppendLine();
         sb.AppendLine("using System.Net;");
+        sb.AppendLine("using System.Threading.Tasks;");
         sb.AppendLine("using NUnit.Framework;");
         sb.AppendLine("using ApiTestFramework.Core.Base;");
         sb.AppendLine("using ApiTestFramework.Core.Assertions;");
@@ -123,39 +70,241 @@ public static class TestCaseScaffolder
         sb.AppendLine($"public class {serviceName}GeneratedTests : BaseTest");
         sb.AppendLine("{");
 
-        foreach (var tc in testCases)
+        foreach (var group in testCases.GroupBy(tc => tc.Endpoint.Method))
         {
-            sb.AppendLine($"    [Test]");
-            sb.AppendLine($"    [Description(\"{tc.Description}\")]");
-            sb.AppendLine($"    [Category(\"{tc.Scenario}\")]");
-            sb.AppendLine($"    public async Task {tc.TestName}()");
-            sb.AppendLine("    {");
-            sb.AppendLine($"        // Endpoint : {tc.Endpoint.Method} {tc.Endpoint.Path}");
-            sb.AppendLine($"        // Scenario : {tc.Scenario}");
-            sb.AppendLine($"        // Expected : HTTP {tc.ExpectedStatusCode}");
-            sb.AppendLine("        await Task.CompletedTask;");
-            sb.AppendLine("        Assert.Inconclusive(\"Scaffold only — implement test body.\");");
-            sb.AppendLine("    }");
-            sb.AppendLine();
+            sb.AppendLine($"    // {group.Key} scenarios");
+            foreach (var tc in group)
+            {
+                sb.AppendLine("    [Test]");
+                sb.AppendLine($"    [Description(\"{tc.Description}\")]");
+                sb.AppendLine($"    [Category(\"{group.Key}\")]");
+                sb.AppendLine($"    [Category(\"{tc.Category}\")]");
+                sb.AppendLine($"    public async Task {tc.TestName}()");
+                sb.AppendLine("    {");
+                sb.AppendLine($"        // Endpoint : {tc.Endpoint.Method} {tc.Endpoint.Path}");
+                sb.AppendLine($"        // Scenario : {tc.Scenario}");
+                sb.AppendLine($"        // Expected : HTTP {tc.ExpectedStatusCode}");
+                sb.AppendLine($"        // Arrange : {tc.ArrangeHint}");
+                sb.AppendLine("        // Act     : invoke the endpoint through a step class or ApiClient.");
+                sb.AppendLine($"        // Assert  : {tc.AssertHint}");
+                sb.AppendLine("        await Task.CompletedTask;");
+                sb.AppendLine("        Assert.Inconclusive(\"Scaffold only — implement test body.\");");
+                sb.AppendLine("    }");
+                sb.AppendLine();
+            }
         }
 
         sb.AppendLine("}");
         return sb.ToString();
     }
 
-    private static string BuildTestName(EndpointDefinition endpoint, TestScenario scenario)
+    private static IEnumerable<TestCaseDefinition> BuildResponseDrivenCases(EndpointDefinition endpoint, string serviceName)
+    {
+        foreach (var response in endpoint.Responses.OrderBy(r => r.Key))
+        {
+            var testCase = BuildResponseCase(endpoint, serviceName, response.Key, response.Value);
+            if (testCase is not null)
+                yield return testCase;
+        }
+    }
+
+    private static TestCaseDefinition? BuildResponseCase(
+        EndpointDefinition endpoint,
+        string serviceName,
+        int statusCode,
+        string? responseSchema)
+    {
+        var metadata = BuildScenarioMetadata(endpoint, statusCode, responseSchema);
+        if (metadata is null)
+            return null;
+
+        return new TestCaseDefinition(
+            TestName: BuildTestName(endpoint, metadata.Value.TestNameSuffix),
+            ServiceName: serviceName,
+            Endpoint: endpoint,
+            Scenario: metadata.Value.Scenario,
+            ExpectedStatusCode: statusCode,
+            Description: metadata.Value.Description,
+            ArrangeHint: metadata.Value.ArrangeHint,
+            AssertHint: metadata.Value.AssertHint,
+            Category: metadata.Value.Category);
+    }
+
+    private static (string TestNameSuffix, string Scenario, string Description, string ArrangeHint, string AssertHint, string Category)? BuildScenarioMetadata(
+        EndpointDefinition endpoint,
+        int statusCode,
+        string? responseSchema)
+    {
+        var assertHint = BuildAssertHint(statusCode, responseSchema);
+
+        return statusCode switch
+        {
+            >= 200 and < 300 => (
+                TestNameSuffix: $"Returns{ToStatusSuffix(statusCode)}",
+                Scenario: $"Documented success response ({statusCode})",
+                Description: $"{endpoint.Method} {endpoint.Path} documented success flow — returns {statusCode}",
+                ArrangeHint: BuildSuccessArrangeHint(endpoint),
+                AssertHint: assertHint,
+                Category: "Success"),
+            400 => (
+                TestNameSuffix: endpoint.HasRequestBody ? "WithInvalidPayload_ReturnsBadRequest" : "WithInvalidInput_ReturnsBadRequest",
+                Scenario: "BadRequest",
+                Description: $"{endpoint.Method} {endpoint.Path} invalid input — returns 400",
+                ArrangeHint: endpoint.HasRequestBody
+                    ? "build an invalid request payload that violates a documented validation rule or omits a required field."
+                    : "provide invalid query or path input that should be rejected by validation.",
+                AssertHint: assertHint,
+                Category: "Negative"),
+            401 when endpoint.RequiresAuth => (
+                TestNameSuffix: "WithoutToken_ReturnsUnauthorized",
+                Scenario: "Unauthorized",
+                Description: $"{endpoint.Method} {endpoint.Path} without token — returns 401",
+                ArrangeHint: "clear or override the Authorization header so no valid token is sent.",
+                AssertHint: assertHint,
+                Category: "Security"),
+            401 => null,
+            403 => (
+                TestNameSuffix: "WithInsufficientPermissions_ReturnsForbidden",
+                Scenario: "Forbidden",
+                Description: $"{endpoint.Method} {endpoint.Path} with insufficient permissions — returns 403",
+                ArrangeHint: "use a valid authenticated user that lacks the required role or permission.",
+                AssertHint: assertHint,
+                Category: "Security"),
+            404 when endpoint.Parameters.Any(p => p.In == "path") => (
+                TestNameSuffix: "WithUnknownResource_ReturnsNotFound",
+                Scenario: "NotFound",
+                Description: $"{endpoint.Method} {endpoint.Path} with non-existent resource identifier — returns 404",
+                ArrangeHint: "use a non-existent path identifier while keeping the rest of the request valid.",
+                AssertHint: assertHint,
+                Category: "Negative"),
+            404 => (
+                TestNameSuffix: "ReturnsNotFound",
+                Scenario: "NotFound",
+                Description: $"{endpoint.Method} {endpoint.Path} documented not-found flow — returns 404",
+                ArrangeHint: "prepare the request so the target resource or route precondition is missing.",
+                AssertHint: assertHint,
+                Category: "Negative"),
+            405 => (
+                TestNameSuffix: "WithUnsupportedMethod_ReturnsMethodNotAllowed",
+                Scenario: "MethodNotAllowed",
+                Description: $"{endpoint.Method} {endpoint.Path} unsupported method flow — returns 405",
+                ArrangeHint: "invoke the same route with a method that the API does not allow.",
+                AssertHint: assertHint,
+                Category: "Negative"),
+            409 => (
+                TestNameSuffix: "WithConflictingState_ReturnsConflict",
+                Scenario: "Conflict",
+                Description: $"{endpoint.Method} {endpoint.Path} conflicting state — returns 409",
+                ArrangeHint: BuildConflictArrangeHint(endpoint),
+                AssertHint: assertHint,
+                Category: "Negative"),
+            415 => (
+                TestNameSuffix: "WithUnsupportedMediaType_ReturnsUnsupportedMediaType",
+                Scenario: "UnsupportedMediaType",
+                Description: $"{endpoint.Method} {endpoint.Path} unsupported media type — returns 415",
+                ArrangeHint: "send the request with an unsupported Content-Type while keeping the remaining inputs valid.",
+                AssertHint: assertHint,
+                Category: "Negative"),
+            422 => (
+                TestNameSuffix: "WithSemanticallyInvalidRequest_ReturnsUnprocessableEntity",
+                Scenario: "UnprocessableEntity",
+                Description: $"{endpoint.Method} {endpoint.Path} semantically invalid request — returns 422",
+                ArrangeHint: "use syntactically valid input that violates a business rule or cross-field constraint.",
+                AssertHint: assertHint,
+                Category: "Negative"),
+            429 => (
+                TestNameSuffix: "WhenRateLimitExceeded_ReturnsTooManyRequests",
+                Scenario: "TooManyRequests",
+                Description: $"{endpoint.Method} {endpoint.Path} rate limit exceeded — returns 429",
+                ArrangeHint: "repeat the request rapidly enough to trigger throttling or simulate a rate-limited client.",
+                AssertHint: assertHint,
+                Category: "Resilience"),
+            500 => (
+                TestNameSuffix: "WhenServerFails_ReturnsInternalServerError",
+                Scenario: "InternalServerError",
+                Description: $"{endpoint.Method} {endpoint.Path} server error handling — returns 500",
+                ArrangeHint: "prepare a controlled dependency failure or fault-injection setup if the environment allows it.",
+                AssertHint: assertHint,
+                Category: "Resilience"),
+            503 => (
+                TestNameSuffix: "WhenServiceUnavailable_ReturnsServiceUnavailable",
+                Scenario: "ServiceUnavailable",
+                Description: $"{endpoint.Method} {endpoint.Path} service unavailable flow — returns 503",
+                ArrangeHint: "simulate unavailable infrastructure, queue saturation, or maintenance mode as documented.",
+                AssertHint: assertHint,
+                Category: "Resilience"),
+            _ => (
+                TestNameSuffix: $"ReturnsStatus{statusCode}",
+                Scenario: $"Documented response {statusCode}",
+                Description: $"{endpoint.Method} {endpoint.Path} documented response — returns {statusCode}",
+                ArrangeHint: "prepare request data and environment conditions that drive this documented response.",
+                AssertHint: assertHint,
+                Category: statusCode >= 500 ? "Resilience" : "Negative")
+        };
+    }
+
+    private static string BuildSuccessArrangeHint(EndpointDefinition endpoint)
+    {
+        return endpoint.Method switch
+        {
+            "GET" => "create or seed the entity required by the route, then request it with valid identifiers and authorization.",
+            "POST" => endpoint.HasRequestBody
+                ? "build a valid creation payload representing a meaningful equivalence class from the contract."
+                : "prepare a valid request that satisfies route, query, and authorization preconditions.",
+            "PUT" => "create the entity first, then send a valid full update request with consistent business data.",
+            "PATCH" => "create the entity first, then send a valid partial update affecting only intended fields.",
+            "DELETE" => "create the entity first so the delete target exists and preconditions are satisfied.",
+            _ => "prepare a valid request aligned with the documented contract and preconditions."
+        };
+    }
+
+    private static string BuildConflictArrangeHint(EndpointDefinition endpoint)
+    {
+        return endpoint.Method switch
+        {
+            "POST" => "prepare an existing resource or duplicate unique value so the create request conflicts with current state.",
+            "PUT" or "PATCH" => "prepare the target resource in a conflicting state, version, or uniqueness context before the update.",
+            _ => "prepare the system state so the request violates a documented uniqueness or concurrency constraint."
+        };
+    }
+
+    private static string BuildAssertHint(int statusCode, string? responseSchema)
+    {
+        if (!string.IsNullOrWhiteSpace(responseSchema))
+        {
+            return $"response.ShouldHaveStatusCode((HttpStatusCode){statusCode}); then verify payload shape and key fields against swagger schema `{responseSchema}`.";
+        }
+
+        return $"response.ShouldHaveStatusCode((HttpStatusCode){statusCode}); then verify the documented empty or error response contract.";
+    }
+
+    private static string BuildTestName(EndpointDefinition endpoint, string scenarioSuffix)
     {
         var resource = ToPascalCase(endpoint.OperationId);
-        var scenarioSuffix = scenario switch
-        {
-            TestScenario.HappyPath    => "ReturnsSuccess",
-            TestScenario.NotFound     => "WithInvalidId_ReturnsNotFound",
-            TestScenario.Unauthorized => "WithoutToken_ReturnsUnauthorized",
-            TestScenario.BadRequest   => "WithInvalidBody_ReturnsBadRequest",
-            TestScenario.Conflict     => "WithDuplicate_ReturnsConflict",
-            _                         => "Unknown"
-        };
         return $"{resource}_{scenarioSuffix}";
+    }
+
+    private static string ToStatusSuffix(int statusCode)
+    {
+        return statusCode switch
+        {
+            200 => "Ok",
+            201 => "Created",
+            202 => "Accepted",
+            204 => "NoContent",
+            400 => "BadRequest",
+            401 => "Unauthorized",
+            403 => "Forbidden",
+            404 => "NotFound",
+            405 => "MethodNotAllowed",
+            409 => "Conflict",
+            415 => "UnsupportedMediaType",
+            422 => "UnprocessableEntity",
+            429 => "TooManyRequests",
+            500 => "InternalServerError",
+            503 => "ServiceUnavailable",
+            _ => $"Status{statusCode}"
+        };
     }
 
     private static string ToPascalCase(string value)
