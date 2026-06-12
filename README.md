@@ -1,6 +1,16 @@
 # API Test Framework
 
-Complete solution with three .NET 8 microservices and a generic API test framework with JWT authentication.
+Complete solution with three .NET 8 microservices and a generic API test framework with pluggable authentication.
+
+> **Reusing this framework for another product/company?** See
+> [docs/ADOPTION.md](docs/ADOPTION.md) — step-by-step porting guide, including
+> how to switch to a different authorization scheme (OAuth2 client credentials,
+> API key, static token, fully custom) without changing framework code.
+
+**Testing policy:** all functional/integration tests are written in .NET
+(NUnit). k6 (JavaScript) is the only exception, used exclusively for load
+testing. The Python utilities in `tools/` are supporting tooling (generators,
+mock server, diagnostics), not a test layer.
 
 ## Architecture
 
@@ -13,7 +23,7 @@ Complete solution with three .NET 8 microservices and a generic API test framewo
 - **ApiTestFramework.Core** — Generic request builder, API client, Autofac DI, Allure integration, FluentAssertions extensions, JWT token management
 - **ApiTestFramework.Clients** — NSwag-generated DTOs and placeholder DTOs
 - **ApiTestFramework.Steps** — Step classes per service (Bogus data generators, Allure step annotations)
-- **ApiTestFramework.Tests** — NUnit test fixtures (22 tests)
+- **ApiTestFramework.Tests** — NUnit test fixtures (34 tests)
 
 ## Tech Stack
 | Component | Technology |
@@ -35,10 +45,29 @@ Complete solution with three .NET 8 microservices and a generic API test framewo
 
 ## Authentication Flow
 
-All ProductService and OrderService endpoints require a valid JWT Bearer token. The test framework handles this automatically:
+Authentication is **pluggable** — `RequestBuilder.Build()` consults the active
+`IAuthenticationProvider` (selected by the `Authentication` section of
+`appsettings.test.json`) and attaches the right header to every request.
+Built-in modes:
+
+| Mode | Use case | Code required |
+|------|----------|---------------|
+| `SessionToken` (default) | Token acquired once at suite start (login flow) and stored in `TokenProvider` | login call in `GlobalSetup` |
+| `OAuth2ClientCredentials` | IdentityServer / Auth0 / Keycloak / Azure AD M2M — fetched & auto-refreshed | none (config only) |
+| `ApiKey` | Key in a configurable header (e.g. `X-Api-Key`) | none (config only) |
+| `StaticToken` | Long-lived PAT from a CI secret / env var | none (config only) |
+| `None` | Anonymous APIs | none |
+| `Custom` | Anything else (HMAC, cookies, ...) — implement `IAuthenticationProvider` | one small class |
+
+Secrets are supplied via `TEST_`-prefixed environment variables
+(`TEST_Authentication__ApiKey`, `TEST_Authentication__OAuth2__ClientSecret`, ...).
+See [docs/ADOPTION.md](docs/ADOPTION.md) for full examples of every mode.
+
+This demo system uses the default `SessionToken` mode — all ProductService and
+OrderService endpoints require a valid JWT Bearer token:
 
 1. **GlobalSetup** registers a user via AuthService and stores the token in `TokenProvider`
-2. **RequestBuilder.Build()** auto-injects the Bearer token from `TokenProvider` into every request
+2. **RequestBuilder.Build()** auto-injects the Bearer token into every request
 3. OrderService forwards the token to ProductService when validating products (cross-service calls)
 
 ```
@@ -103,7 +132,7 @@ allure serve TestResults/allure-results
 │   ├── ApiTestFramework.Core/   # Core framework: RequestBuilder, ApiClient, DI, Assertions, TokenProvider
 │   ├── ApiTestFramework.Clients/# NSwag configs + placeholder DTOs (Auth, Product, Order)
 │   ├── ApiTestFramework.Steps/  # Step classes + Bogus data generators
-│   └── ApiTestFramework.Tests/  # NUnit test fixtures (Auth, Product, Order — 22 tests)
+│   └── ApiTestFramework.Tests/  # NUnit test fixtures (Auth, Product, Order, Framework — 34 tests)
 ├── tools/                       # Generic OpenAPI-driven Python tooling (see tools/README.md)
 │   ├── openapi_common.py        #   shared lib: service registry, spec parsing, payload generation
 │   ├── generate_collections.py  #   → collections/ (Postman + Bruno, JWT pre-wired)
@@ -134,8 +163,10 @@ python3 tools/run_schemathesis.py            # fuzz every endpoint (pip install 
 
 ## Key Framework Features
 
-### Automatic Bearer Token Injection
-The `RequestBuilder` automatically attaches the JWT token from `TokenProvider` to every request. No manual token handling needed in tests:
+### Automatic Authentication Header Injection
+The `RequestBuilder` automatically attaches the header produced by the active
+`IAuthenticationProvider` (in this demo: the JWT from `TokenProvider`) to every
+request. No manual token handling needed in tests:
 
 ```csharp
 // Token is auto-injected — no need to call WithBearerToken()
@@ -213,3 +244,4 @@ response.ShouldMatchDtoExcluding(expectedProduct,
 | AuthService | 7 | Register, login, duplicate user, wrong password, unauthorized access |
 | ProductService | 7 | Create, get, get all, update, delete (valid & invalid scenarios) |
 | OrderService | 8 | Create (valid & invalid product), get, get all, update, delete, full lifecycle |
+| Framework | 12 | Unit tests for the pluggable authentication layer (providers, factory, RequestBuilder injection) — run without live services |

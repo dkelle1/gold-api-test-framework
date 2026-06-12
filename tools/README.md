@@ -1,5 +1,12 @@
 # Generic OpenAPI Tooling (`tools/`)
 
+> **Scope note:** these are *supporting utilities*, not a test layer. All
+> functional/integration tests are written in .NET (NUnit) — see
+> [docs/ADOPTION.md](../docs/ADOPTION.md). k6 (JavaScript) is the only
+> exception, used exclusively for load testing. The smoke runner here is a
+> fast diagnostic gate (is the environment up and roughly contract-compliant?)
+> that complements — never replaces — the .NET suite.
+
 Python tooling driven entirely by the committed OpenAPI specs in
 `tests/ApiTestFramework.Clients/swagger/`. Nothing here is hand-written per
 endpoint: **adding a new microservice to the framework only requires a new
