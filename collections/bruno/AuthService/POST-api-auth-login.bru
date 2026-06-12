@@ -1,0 +1,29 @@
+meta {
+  name: POST /api/auth/login
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{authBaseUrl}}/api/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "qa_tester",
+    "password": "P@ssw0rd_123!"
+  }
+}
+
+script:pre-request {
+  bru.setVar('uniq', Date.now().toString());
+}
+
+script:post-response {
+  const token = res.body?.token?.accessToken;
+  if (token) {
+    bru.setEnvVar('accessToken', token);
+  }
+}

@@ -1,0 +1,14 @@
+meta {
+  name: GET /api/products/category/{category}
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{productBaseUrl}}/api/products/category/{category}
+  auth: inherit
+}
+
+params:path {
+  category: Electronics
+}

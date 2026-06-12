@@ -1,0 +1,6 @@
+# Only needed for tools/run_schemathesis.py — every other tool in tools/
+# (generate_collections.py, generate_k6.py, smoke_runner.py) is stdlib-only.
+#
+# Pinned to the 3.x CLI surface (run --base-url/--header/--junit-xml flags);
+# schemathesis 4.x renamed several flags.
+schemathesis>=3.36,<4

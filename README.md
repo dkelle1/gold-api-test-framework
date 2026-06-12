@@ -28,6 +28,10 @@ Complete solution with three .NET 8 microservices and a generic API test framewo
 | Assertions | FluentAssertions |
 | Reporting | Allure (with full request/response logging) |
 | CI/CD | Jenkins (Jenkinsfile) |
+| Load Testing | k6 (scripts generated from OpenAPI — `tools/generate_k6.py`) |
+| Fuzz / Contract Testing | Schemathesis (`tools/run_schemathesis.py`) |
+| Smoke Testing | OpenAPI-driven Python runner (`tools/smoke_runner.py`) |
+| API Exploration | Generated Postman & Bruno collections (`tools/generate_collections.py`) |
 
 ## Authentication Flow
 
@@ -100,8 +104,32 @@ allure serve TestResults/allure-results
 │   ├── ApiTestFramework.Clients/# NSwag configs + placeholder DTOs (Auth, Product, Order)
 │   ├── ApiTestFramework.Steps/  # Step classes + Bogus data generators
 │   └── ApiTestFramework.Tests/  # NUnit test fixtures (Auth, Product, Order — 22 tests)
+├── tools/                       # Generic OpenAPI-driven Python tooling (see tools/README.md)
+│   ├── openapi_common.py        #   shared lib: service registry, spec parsing, payload generation
+│   ├── generate_collections.py  #   → collections/ (Postman + Bruno, JWT pre-wired)
+│   ├── generate_k6.py           #   → perf/k6/ (load-test scripts: smoke/load/stress)
+│   ├── smoke_runner.py          #   live smoke + contract validation (stdlib only)
+│   ├── run_schemathesis.py      #   property-based fuzzing wrapper
+│   └── mock_server.py           #   in-memory mock of all services from the specs
+├── collections/                 # Generated Postman + Bruno collections
+├── perf/k6/                     # Generated k6 load-test scripts
 ├── Jenkinsfile                  # CI/CD pipeline
 └── ApiTestFramework.sln
+```
+
+## Generic OpenAPI Tooling (Python)
+
+Everything under `tools/` is generated from the committed swagger specs —
+adding a new microservice only requires one registry entry in
+`tools/openapi_common.py`. See [tools/README.md](tools/README.md) for details.
+
+```bash
+python3 tools/smoke_runner.py                # smoke + contract check of live services
+python3 tools/mock_server.py                 # run all services as in-memory mocks
+python3 tools/generate_collections.py        # regenerate Postman/Bruno collections
+python3 tools/generate_k6.py                 # regenerate k6 load-test scripts
+k6 run -e PROFILE=load perf/k6/all-services.js
+python3 tools/run_schemathesis.py            # fuzz every endpoint (pip install -r tools/requirements.txt)
 ```
 
 ## Key Framework Features
