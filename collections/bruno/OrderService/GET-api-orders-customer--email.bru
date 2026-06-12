@@ -1,0 +1,14 @@
+meta {
+  name: GET /api/orders/customer/{email}
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{orderBaseUrl}}/api/orders/customer/{email}
+  auth: inherit
+}
+
+params:path {
+  email: qa.tester@example.com
+}

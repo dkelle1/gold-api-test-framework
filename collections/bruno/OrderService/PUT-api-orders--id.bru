@@ -1,0 +1,24 @@
+meta {
+  name: PUT /api/orders/{id}
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{orderBaseUrl}}/api/orders/{id}
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 1
+}
+
+body:json {
+  {
+    "quantity": 1,
+    "status": "Pending",
+    "customerName": "Sample Name",
+    "customerEmail": "qa.tester@example.com"
+  }
+}

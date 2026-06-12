@@ -42,3 +42,7 @@ tests/ApiTestFramework.Clients/Generated/
 # OS
 Thumbs.db
 *.DS_Store
+
+# Python tooling
+__pycache__/
+*.pyc

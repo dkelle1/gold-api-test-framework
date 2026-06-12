@@ -1,0 +1,485 @@
+{
+  "info": {
+    "name": "ApiTestFramework",
+    "description": "Generated from OpenAPI specs by tools/generate_collections.py \u2014 do not edit by hand.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "AuthService",
+      "description": "Microservice for authentication and JWT token generation",
+      "item": [
+        {
+          "name": "POST /api/auth/register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{authBaseUrl}}/api/auth/register",
+              "host": [
+                "{{authBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ],
+              "variable": []
+            },
+            "description": "`POST /api/auth/register` \u2014 operationId: Register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"user_{{$timestamp}}\",\n  \"email\": \"user_{{$timestamp}}@example.com\",\n  \"password\": \"P@ssw0rd_123!\",\n  \"role\": \"User\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "const token = data?.token?.accessToken;",
+                  "if (token) {",
+                  "    pm.environment.set('accessToken', token);",
+                  "    console.log('accessToken captured');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{authBaseUrl}}/api/auth/login",
+              "host": [
+                "{{authBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "variable": []
+            },
+            "description": "`POST /api/auth/login` \u2014 operationId: Login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"qa_tester\",\n  \"password\": \"P@ssw0rd_123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "const token = data?.token?.accessToken;",
+                  "if (token) {",
+                  "    pm.environment.set('accessToken', token);",
+                  "    console.log('accessToken captured');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ProductService",
+      "description": "Microservice for managing products",
+      "item": [
+        {
+          "name": "GET /api/products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{productBaseUrl}}/api/products",
+              "host": [
+                "{{productBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products"
+              ],
+              "variable": []
+            },
+            "description": "`GET /api/products` \u2014 operationId: GetAllProducts"
+          }
+        },
+        {
+          "name": "POST /api/products",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{productBaseUrl}}/api/products",
+              "host": [
+                "{{productBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products"
+              ],
+              "variable": []
+            },
+            "description": "`POST /api/products` \u2014 operationId: CreateProduct",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sample Name\",\n  \"description\": \"Generated by tools/openapi_common.py\",\n  \"price\": 19.99,\n  \"stockQuantity\": 50,\n  \"category\": \"Electronics\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /api/products/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{productBaseUrl}}/api/products/:id",
+              "host": [
+                "{{productBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Path parameter (integer)"
+                }
+              ]
+            },
+            "description": "`GET /api/products/{id}` \u2014 operationId: GetProductById"
+          }
+        },
+        {
+          "name": "PUT /api/products/{id}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{productBaseUrl}}/api/products/:id",
+              "host": [
+                "{{productBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Path parameter (integer)"
+                }
+              ]
+            },
+            "description": "`PUT /api/products/{id}` \u2014 operationId: UpdateProduct",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sample Name\",\n  \"description\": \"Generated by tools/openapi_common.py\",\n  \"price\": 19.99,\n  \"stockQuantity\": 50,\n  \"category\": \"Electronics\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /api/products/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{productBaseUrl}}/api/products/:id",
+              "host": [
+                "{{productBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Path parameter (integer)"
+                }
+              ]
+            },
+            "description": "`DELETE /api/products/{id}` \u2014 operationId: DeleteProduct"
+          }
+        },
+        {
+          "name": "GET /api/products/category/{category}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{productBaseUrl}}/api/products/category/:category",
+              "host": [
+                "{{productBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "category",
+                ":category"
+              ],
+              "variable": [
+                {
+                  "key": "category",
+                  "value": "Electronics",
+                  "description": "Path parameter (string)"
+                }
+              ]
+            },
+            "description": "`GET /api/products/category/{category}` \u2014 operationId: GetProductsByCategory"
+          }
+        }
+      ]
+    },
+    {
+      "name": "OrderService",
+      "description": "Microservice for managing orders. Depends on Product Service for product validation.",
+      "item": [
+        {
+          "name": "GET /api/orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{orderBaseUrl}}/api/orders",
+              "host": [
+                "{{orderBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ],
+              "variable": []
+            },
+            "description": "`GET /api/orders` \u2014 operationId: GetAllOrders"
+          }
+        },
+        {
+          "name": "POST /api/orders",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{orderBaseUrl}}/api/orders",
+              "host": [
+                "{{orderBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ],
+              "variable": []
+            },
+            "description": "`POST /api/orders` \u2014 operationId: CreateOrder",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": 1,\n  \"customerName\": \"Sample Name\",\n  \"customerEmail\": \"qa.tester@example.com\",\n  \"quantity\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /api/orders/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{orderBaseUrl}}/api/orders/:id",
+              "host": [
+                "{{orderBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Path parameter (integer)"
+                }
+              ]
+            },
+            "description": "`GET /api/orders/{id}` \u2014 operationId: GetOrderById"
+          }
+        },
+        {
+          "name": "PUT /api/orders/{id}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{orderBaseUrl}}/api/orders/:id",
+              "host": [
+                "{{orderBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Path parameter (integer)"
+                }
+              ]
+            },
+            "description": "`PUT /api/orders/{id}` \u2014 operationId: UpdateOrder",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 1,\n  \"status\": \"Pending\",\n  \"customerName\": \"Sample Name\",\n  \"customerEmail\": \"qa.tester@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /api/orders/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{orderBaseUrl}}/api/orders/:id",
+              "host": [
+                "{{orderBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Path parameter (integer)"
+                }
+              ]
+            },
+            "description": "`DELETE /api/orders/{id}` \u2014 operationId: DeleteOrder"
+          }
+        },
+        {
+          "name": "GET /api/orders/customer/{email}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{orderBaseUrl}}/api/orders/customer/:email",
+              "host": [
+                "{{orderBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "customer",
+                ":email"
+              ],
+              "variable": [
+                {
+                  "key": "email",
+                  "value": "qa.tester@example.com",
+                  "description": "Path parameter (string)"
+                }
+              ]
+            },
+            "description": "`GET /api/orders/customer/{email}` \u2014 operationId: GetOrdersByCustomerEmail"
+          }
+        }
+      ]
+    }
+  ]
+}

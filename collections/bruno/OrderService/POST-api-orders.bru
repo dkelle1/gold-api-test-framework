@@ -1,0 +1,20 @@
+meta {
+  name: POST /api/orders
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{orderBaseUrl}}/api/orders
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "productId": 1,
+    "customerName": "Sample Name",
+    "customerEmail": "qa.tester@example.com",
+    "quantity": 1
+  }
+}
