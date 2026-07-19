@@ -14,19 +14,54 @@ namespace ApiTestFramework.Steps.ServiceSteps;
 /// <summary>
 /// Step class for OrderService operations.
 /// Depends on ProductServiceSteps for creating required products.
+/// By default requests use the global token; bind a different identity per instance
+/// via AsIdentity(name) or WithToken(token) — the binding also applies to the
+/// internal ProductServiceSteps used for setup.
 /// </summary>
 public class OrderServiceSteps
 {
     private readonly ApiClient _client;
     private readonly ProductServiceSteps _productSteps;
     private readonly ILogger _logger;
+    private readonly string? _identity;
+    private readonly string? _bearerToken;
 
-    public OrderServiceSteps()
+    public OrderServiceSteps() : this(identity: null, bearerToken: null)
+    {
+    }
+
+    private OrderServiceSteps(string? identity, string? bearerToken)
     {
         _client = ContainerProvider.ResolveNamed<ApiClient>("OrderService");
-        _productSteps = new ProductServiceSteps();
         _logger = Log.ForContext<OrderServiceSteps>();
+        _identity = identity;
+        _bearerToken = bearerToken;
+
+        var productSteps = new ProductServiceSteps();
+        _productSteps = bearerToken != null ? productSteps.WithToken(bearerToken)
+            : identity != null ? productSteps.AsIdentity(identity)
+            : productSteps;
     }
+
+    /// <summary>
+    /// Returns a copy of these steps that sends every request as the given
+    /// named identity registered in TokenProvider (e.g. "admin").
+    /// </summary>
+    public OrderServiceSteps AsIdentity(string identity) => new(identity, bearerToken: null);
+
+    /// <summary>
+    /// Returns a copy of these steps that sends every request with the given Bearer token.
+    /// </summary>
+    public OrderServiceSteps WithToken(string bearerToken) => new(identity: null, bearerToken: bearerToken);
+
+    /// <summary>
+    /// Applies the bound identity/token (if any) to a request builder.
+    /// Without a binding the request falls back to the default auto-injected token.
+    /// </summary>
+    private RequestBuilder Authorized(RequestBuilder builder) =>
+        _bearerToken != null ? builder.WithBearerToken(_bearerToken)
+        : _identity != null ? builder.AsIdentity(_identity)
+        : builder;
 
     /// <summary>
     /// Creates an order with a newly created product (full setup).
@@ -55,7 +90,7 @@ public class OrderServiceSteps
             createRequest.ProductId, createRequest.CustomerName);
 
         var response = await _client.SendAsync<Order>(
-            RequestFactory.Post(OrderServiceRoutes.Base, createRequest));
+            Authorized(RequestFactory.Post(OrderServiceRoutes.Base, createRequest)));
 
         response.ShouldHaveStatusCode(HttpStatusCode.Created);
         var order = response.ShouldHaveData();
@@ -71,10 +106,10 @@ public class OrderServiceSteps
     public async Task<RestResponse<Order>> GetOrderAsync(int id)
     {
         var response = await _client.SendAsync<Order>(
-            RequestBuilder.Create()
+            Authorized(RequestBuilder.Create()
                 .WithMethod(Method.Get)
                 .WithPath(OrderServiceRoutes.ById)
-                .WithPathSegment("id", id));
+                .WithPathSegment("id", id)));
 
         return response;
     }
@@ -86,7 +121,7 @@ public class OrderServiceSteps
     public async Task<RestResponse<List<Order>>> GetAllOrdersAsync()
     {
         var response = await _client.SendAsync<List<Order>>(
-            RequestFactory.Get(OrderServiceRoutes.Base));
+            Authorized(RequestFactory.Get(OrderServiceRoutes.Base)));
 
         return response;
     }
@@ -98,11 +133,11 @@ public class OrderServiceSteps
     public async Task<RestResponse<Order>> UpdateOrderAsync(int id, UpdateOrderRequest updateRequest)
     {
         var response = await _client.SendAsync<Order>(
-            RequestBuilder.Create()
+            Authorized(RequestBuilder.Create()
                 .WithMethod(Method.Put)
                 .WithPath(OrderServiceRoutes.ById)
                 .WithPathSegment("id", id)
-                .WithBody(updateRequest));
+                .WithBody(updateRequest)));
 
         return response;
     }
@@ -114,10 +149,10 @@ public class OrderServiceSteps
     public async Task<RestResponse> DeleteOrderAsync(int id)
     {
         var response = await _client.SendAsync(
-            RequestBuilder.Create()
+            Authorized(RequestBuilder.Create()
                 .WithMethod(Method.Delete)
                 .WithPath(OrderServiceRoutes.ById)
-                .WithPathSegment("id", id));
+                .WithPathSegment("id", id)));
 
         return response;
     }
@@ -129,10 +164,10 @@ public class OrderServiceSteps
     public async Task<RestResponse<List<Order>>> GetOrdersByCustomerEmailAsync(string email)
     {
         var response = await _client.SendAsync<List<Order>>(
-            RequestBuilder.Create()
+            Authorized(RequestBuilder.Create()
                 .WithMethod(Method.Get)
                 .WithPath(OrderServiceRoutes.ByCustomerEmail)
-                .WithPathSegment("email", email));
+                .WithPathSegment("email", email)));
 
         return response;
     }

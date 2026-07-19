@@ -6,11 +6,11 @@ This solution contains **3 .NET 8 microservices** and a **test automation framew
 
 ### Microservices (`src/`)
 
-| Service       | Port | Database          | Purpose                          |
-|---------------|------|-------------------|----------------------------------|
-| AuthService   | 5300 | `AuthServiceDb`   | User registration, JWT tokens    |
-| ProductService| 5100 | `ProductServiceDb`| Product CRUD, JWT-protected      |
-| OrderService  | 5200 | `OrderServiceDb`  | Order CRUD, cross-calls Product  |
+| Service       | Port | Database          | Purpose                                            |
+|---------------|------|-------------------|----------------------------------------------------|
+| AuthService   | 5300 | `AuthServiceDb`   | User registration, JWT tokens (with role claim)    |
+| ProductService| 5100 | `ProductServiceDb`| Product CRUD, JWT-protected, DELETE = `Admin` role |
+| OrderService  | 5200 | `OrderServiceDb`  | Order CRUD, cross-calls Product                    |
 
 **Infrastructure**: SQL Server (EF Core, `EnsureCreated`) + Redis (distributed cache via `IDistributedCache`).
 
@@ -65,9 +65,9 @@ ApiTestFramework.OpenApi — OpenAPI spec parsing + test case scaffolding for fu
 ### Key Classes
 
 - **`ApiClient`** — wraps RestSharp, auto-attaches Bearer token from `TokenProvider`, logs all requests to Allure
-- **`RequestBuilder`** — fluent builder: `RequestBuilder.Create().WithMethod(Method.Post).WithPath("/api/...").WithBody(dto)`
+- **`RequestBuilder`** — fluent builder: `RequestBuilder.Create().WithMethod(Method.Post).WithPath("/api/...").WithBody(dto)`; auth per request via `AsIdentity("admin")`, `WithBearerToken(raw)` or `WithoutAuth()`
 - **`RequestFactory`** — shortcuts: `RequestFactory.Get(path)`, `RequestFactory.Post(path, body)`, etc.
-- **`TokenProvider`** — static holder for JWT; set once in `GlobalSetup.cs`, auto-injected into every request
+- **`TokenProvider`** — static store of JWT tokens keyed by identity name; the default identity plus every entry from the `Identities` config section are registered in `GlobalSetup.cs`; the default token is auto-injected into every request
 - **`BaseTest`** — base class for all test fixtures; inherit from it
 - **`ResponseAssertions`** — extension methods: `.ShouldHaveStatusCode(HttpStatusCode.OK)`, `.ShouldMatchDto(expected)`, `.ShouldHaveData()`
 - **`ContainerProvider`** — Autofac DI; use `ContainerProvider.ResolveNamed<ApiClient>("ProductService")`
@@ -146,8 +146,31 @@ Test configuration is in `tests/ApiTestFramework.Tests/appsettings.test.json`:
 {
   "AuthService":    { "BaseUrl": "http://localhost:5300" },
   "ProductService": { "BaseUrl": "http://localhost:5100" },
-  "OrderService":   { "BaseUrl": "http://localhost:5200" }
+  "OrderService":   { "BaseUrl": "http://localhost:5200" },
+  "Identities": [
+    { "Name": "admin", "Role": "Admin" },
+    { "Name": "user",  "Role": "User" }
+  ]
 }
+```
+
+### Multiple Identities (different tokens per request)
+
+Each `Identities` entry is registered during `GlobalSetup` and its token stored in `TokenProvider` under `Name` (constants in `TestIdentities`). Usage:
+
+```csharp
+// per request
+await client.SendAsync(RequestFactory.Delete("/api/products/42").AsIdentity(TestIdentities.Admin));
+
+// per steps instance (also propagates to nested steps, e.g. Order → Product)
+var adminSteps = new ProductServiceSteps().AsIdentity(TestIdentities.Admin);
+
+// raw ad-hoc token
+var admin = await _authSteps.RegisterUserAsync(AuthDataGenerator.GenerateRegisterRequest(role: "Admin"));
+await _productSteps.WithToken(admin.Token.AccessToken).DeleteProductAsync(id);
+
+// anonymous request (401 tests)
+RequestFactory.Get("/api/products").WithoutAuth();
 ```
 
 ### Running Tests

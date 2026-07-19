@@ -48,24 +48,62 @@ public class GlobalSetup
         // Acquire Bearer token via AuthService (direct call — no AllureStep context here)
         Log.Information("Acquiring Bearer token...");
         var authClient = ContainerProvider.ResolveNamed<ApiClient>("AuthService");
-        var registerRequest = new RegisterRequest
+        var defaultToken = await RegisterUserAndGetTokenAsync(authClient, new RegisterRequest
         {
             Username = "test_user_global",
             Email = "test_global@test.com",
             Password = "TestPass123!",
             Role = "User"
-        };
+        });
+        TokenProvider.SetToken(defaultToken);
+        Log.Information("Default Bearer token acquired successfully");
+
+        // Register additional named identities (e.g. admin/user) so tests can send
+        // individual requests with different permissions via AsIdentity(name)
+        foreach (var identity in config.Identities)
+        {
+            var suffix = Guid.NewGuid().ToString("N")[..8];
+            var token = await RegisterUserAndGetTokenAsync(authClient, new RegisterRequest
+            {
+                Username = $"test_{identity.Name}_{suffix}",
+                Email = $"test_{identity.Name}_{suffix}@test.com",
+                Password = "TestPass123!",
+                Role = identity.Role
+            });
+            TokenProvider.SetToken(identity.Name, token);
+            Log.Information("Identity '{Identity}' registered with role {Role}", identity.Name, identity.Role);
+        }
+    }
+
+    private static async Task<string> RegisterUserAndGetTokenAsync(ApiClient authClient, RegisterRequest registerRequest)
+    {
         var response = await authClient.SendAsync<AuthResponse>(
             RequestFactory.Post(AuthServiceRoutes.Register, registerRequest));
+
+        // Re-running the suite against a live stack yields 409 for fixed usernames — log in instead
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            var loginResponse = await authClient.SendAsync<AuthResponse>(
+                RequestFactory.Post(AuthServiceRoutes.Login, new LoginRequest
+                {
+                    Username = registerRequest.Username,
+                    Password = registerRequest.Password
+                }));
+
+            if (loginResponse.StatusCode == HttpStatusCode.OK && loginResponse.Data?.Token?.AccessToken != null)
+            {
+                return loginResponse.Data.Token.AccessToken;
+            }
+        }
 
         if (response.StatusCode != HttpStatusCode.Created || response.Data?.Token?.AccessToken == null)
         {
             throw new InvalidOperationException(
-                $"Failed to acquire Bearer token. Status: {response.StatusCode}, Content: {response.Content}");
+                $"Failed to acquire Bearer token for user '{registerRequest.Username}'. " +
+                $"Status: {response.StatusCode}, Content: {response.Content}");
         }
 
-        TokenProvider.SetToken(response.Data.Token.AccessToken);
-        Log.Information("Bearer token acquired successfully for user: {User}", response.Data.User.Username);
+        return response.Data.Token.AccessToken;
     }
 
     [OneTimeTearDown]
