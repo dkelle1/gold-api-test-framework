@@ -2,6 +2,7 @@ using System.Net;
 using Allure.NUnit.Attributes;
 using ApiTestFramework.Clients.AuthService;
 using ApiTestFramework.Core.Assertions;
+using ApiTestFramework.Core.Auth;
 using ApiTestFramework.Core.Client;
 using ApiTestFramework.Core.Constants;
 using ApiTestFramework.Core.DI;
@@ -95,6 +96,24 @@ public class AuthServiceSteps
     {
         var authResponse = await RegisterUserAsync();
         return authResponse.Token.AccessToken;
+    }
+
+    /// <summary>
+    /// Registers a fresh user with the given role and stores its Bearer token in
+    /// TokenProvider under the given identity name. The identity can then be used
+    /// per request via RequestBuilder.AsIdentity(name) or steps.AsIdentity(name).
+    /// </summary>
+    [AllureStep("Register identity '{identityName}' with role: {role}")]
+    public async Task<AuthResponse> RegisterIdentityAsync(string identityName, string role = "User")
+    {
+        var request = AuthDataGenerator.GenerateRegisterRequest(role);
+        var authResponse = await RegisterUserAsync(request);
+
+        TokenProvider.SetToken(identityName, authResponse.Token.AccessToken);
+        _logger.Information("Registered identity '{Identity}' (user: {Username}, role: {Role})",
+            identityName, authResponse.User.Username, role);
+
+        return authResponse;
     }
 
     /// <summary>

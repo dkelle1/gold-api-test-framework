@@ -17,11 +17,14 @@ namespace ApiTestFramework.Tests.ProductService;
 public class ProductCrudTests : BaseTest
 {
     private ProductServiceSteps _steps = null!;
+    private ProductServiceSteps _adminSteps = null!;
 
     public override void OneTimeSetUp()
     {
         base.OneTimeSetUp();
         _steps = new ProductServiceSteps();
+        // DELETE /api/products/{id} requires the Admin role
+        _adminSteps = _steps.AsIdentity(TestIdentities.Admin);
     }
 
     [Test]
@@ -112,14 +115,14 @@ public class ProductCrudTests : BaseTest
 
     [Test]
     [AllureSeverity(SeverityLevel.critical)]
-    [AllureDescription("Verify that a product can be deleted")]
+    [AllureDescription("Verify that a product can be deleted by an admin")]
     public async Task DeleteProduct_WithValidId_ReturnsNoContent()
     {
         // Arrange
         var created = await _steps.CreateProductAsync();
 
         // Act
-        var deleteResponse = await _steps.DeleteProductAsync(created.Id);
+        var deleteResponse = await _adminSteps.DeleteProductAsync(created.Id);
 
         // Assert
         deleteResponse.ShouldHaveStatusCode(HttpStatusCode.NoContent);
@@ -135,7 +138,7 @@ public class ProductCrudTests : BaseTest
     public async Task DeleteProduct_WithInvalidId_ReturnsNotFound()
     {
         // Act
-        var response = await _steps.DeleteProductAsync(99999);
+        var response = await _adminSteps.DeleteProductAsync(99999);
 
         // Assert
         response.ShouldHaveStatusCode(HttpStatusCode.NotFound);
