@@ -11,9 +11,11 @@ Complete solution with three .NET 8 microservices and a generic API test framewo
 
 ### Test Framework
 - **ApiTestFramework.Core** — Generic request builder, API client, Autofac DI, Allure integration, FluentAssertions extensions, JWT token management
-- **ApiTestFramework.Clients** — NSwag-generated DTOs and placeholder DTOs
-- **ApiTestFramework.Steps** — Step classes per service (Bogus data generators, Allure step annotations)
-- **ApiTestFramework.Tests** — NUnit test fixtures (22 tests)
+- **ApiTestFramework.Clients** — NSwag-generated DTOs and placeholder DTOs + offline swagger files
+- **ApiTestFramework.Steps** — Step classes per service, generated fluent test-data builders (+ partial customizations), Bogus data generators
+- **ApiTestFramework.OpenApi** — OpenAPI spec loader, schema extractor, builder & test-case scaffolders
+- **ApiTestFramework.Generator.Cli** — console tool that regenerates builders and test scaffolds from swagger
+- **ApiTestFramework.Tests** — NUnit test fixtures (25 tests)
 
 ## Tech Stack
 | Component | Technology |
@@ -96,11 +98,20 @@ allure serve TestResults/allure-results
 │   ├── ProductService/          # Product microservice (port 5100, JWT protected)
 │   └── OrderService/            # Order microservice (port 5200, JWT protected, depends on ProductService)
 ├── tests/
-│   ├── ApiTestFramework.Core/   # Core framework: RequestBuilder, ApiClient, DI, Assertions, TokenProvider
-│   ├── ApiTestFramework.Clients/# NSwag configs + placeholder DTOs (Auth, Product, Order)
-│   ├── ApiTestFramework.Steps/  # Step classes + Bogus data generators
-│   └── ApiTestFramework.Tests/  # NUnit test fixtures (Auth, Product, Order — 22 tests)
-├── Jenkinsfile                  # CI/CD pipeline
+│   ├── ApiTestFramework.Core/          # Core framework: RequestBuilder, ApiClient, DI, Assertions, TokenProvider
+│   ├── ApiTestFramework.Clients/       # NSwag configs + placeholder DTOs + offline swagger/*.json
+│   ├── ApiTestFramework.Steps/         # Step classes + data generators
+│   │   └── Builders/
+│   │       ├── <Service>/Generated/    # *.g.cs — fluent builders regenerated from swagger (do not edit)
+│   │       └── Custom/                 # hand-written partial halves (survive regeneration)
+│   ├── ApiTestFramework.OpenApi/       # OpenAPI loader, SchemaExtractor, BuilderScaffolder, TestCaseScaffolder
+│   ├── ApiTestFramework.Generator.Cli/ # dotnet run → regenerates builders + test scaffolds
+│   └── ApiTestFramework.Tests/         # NUnit test fixtures (Auth, Product, Order — 25 tests)
+│       └── Generated/                  # *.cs.txt test scaffolds (promote to .cs by hand)
+├── scripts/
+│   ├── refresh-swagger.ps1             # pull swagger.json from running services
+│   └── regenerate-all.ps1              # full regeneration pipeline
+├── Jenkinsfile                         # CI/CD pipeline
 └── ApiTestFramework.sln
 ```
 
@@ -167,6 +178,66 @@ var product = await _productSteps.CreateProductAsync();
 var (order, productId) = await _orderSteps.CreateOrderWithProductAsync();
 ```
 
+### Test Data Builders — nested DTOs in a single request
+
+`CreateOrderRequest` is deliberately deeply nested (`Customer → Address`, `Items[]`, `Shipping → Address`).
+The generated fluent builders mirror that nesting: every object property gets an
+`Action<...Builder>` overload and every collection gets `AddX(...)` methods, so one
+request composed of many DTOs reads top-down:
+
+```csharp
+using ApiTestFramework.Steps.Builders.OrderService;
+
+var request = new CreateOrderRequestBuilder()          // sensible Bogus defaults everywhere
+    .WithCustomer(c => c
+        .WithName("Jan Testowy")
+        .WithAddress(a => a.WithCity("Gdańsk").WithPostalCode("80-001")))
+    .WithShipping(s => s.WithMethod(ShippingMethod.Express))
+    .ForProduct(productId, quantity: 2)                // custom helper (partial class)
+    .ForProduct(otherProductId, quantity: 3)           // multi-item order
+    .Build();
+```
+
+Builder anatomy:
+- `Builders/<Service>/Generated/*.g.cs` — regenerated from swagger; Bogus defaults are
+  derived from property name/type heuristics (emails, addresses, prices, quantities…).
+  Ids are never invented — tests must supply them (`WithProductId`, `ForProduct`).
+- `Builders/Custom/*.cs` — the hand-written half of the same `partial` class. Domain
+  knowledge lives here (e.g. password policy, `ForProduct` helpers) and hooks into the
+  generated code via `OnDefaultsApplied()` / `OnBeforeBuild(instance)`. Regeneration
+  never touches these files.
+- `DataGenerators/*` — thin facades over the builders for the most common cases.
+
+### Updating endpoints / test data — regeneration workflow
+
+When a service endpoint or DTO changes, regenerate instead of hand-editing:
+
+```powershell
+# 1. Change the service (src/...), start the services
+# 2. Full pipeline: swagger → NSwag DTOs → builders + scaffolds → build
+.\scripts\regenerate-all.ps1 -RefreshSwagger -NSwag
+
+# Offline (no running services; swagger files edited by hand or from CI):
+.\scripts\regenerate-all.ps1
+```
+
+What gets regenerated where:
+
+| Artifact | Location | Source | Editable? |
+|----------|----------|--------|-----------|
+| Swagger specs | `Clients/swagger/*.json` | running services (`refresh-swagger.ps1`) | no — refresh |
+| DTO clients | `Clients/Dtos` (NSwag) | swagger | no — regenerate |
+| Builders | `Steps/Builders/<Service>/Generated/*.g.cs` | swagger request schemas | no — regenerate |
+| Builder customizations | `Steps/Builders/Custom/*.cs` | hand-written | yes (partial classes) |
+| Test scaffolds | `Tests/Generated/*.cs.txt` | swagger endpoints | promote to `.cs` by hand |
+
+The generator (`ApiTestFramework.Generator.Cli`) walks each swagger file, takes the
+transitive closure of schemas reachable from request bodies (nested objects, arrays,
+nullable `oneOf` wrappers), and emits one partial builder class per schema. Stale
+`*.g.cs` files are deleted, so removed DTOs disappear on regeneration; custom partial
+files fail the post-regeneration build if they reference removed members — which is
+exactly the signal that a hand-written helper needs updating.
+
 ### DTO Validation
 ```csharp
 // Full DTO comparison
@@ -184,4 +255,4 @@ response.ShouldMatchDtoExcluding(expectedProduct,
 |-------|-------|-------------|
 | AuthService | 7 | Register, login, duplicate user, wrong password, unauthorized access |
 | ProductService | 7 | Create, get, get all, update, delete (valid & invalid scenarios) |
-| OrderService | 8 | Create (valid & invalid product), get, get all, update, delete, full lifecycle |
+| OrderService | 11 | Create (single/multi-item, nested address+shipping, invalid product, empty items), get, get all, update (nested customer), delete, full lifecycle |
