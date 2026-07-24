@@ -136,44 +136,80 @@ app.MapGet("/api/orders/customer/{email}", async (string email, IOrderRepository
 .Produces<IEnumerable<OrderResponse>>(StatusCodes.Status200OK)
 .RequireAuthorization();
 
-// POST create order (validates product via ProductService)
+// POST create order (nested request: Customer + Address, Items[], Shipping; validates products via ProductService)
 app.MapPost("/api/orders", async (CreateOrderRequest request, IOrderRepository repo,
     IProductServiceClient productClient, HttpContext httpContext) =>
 {
-    if (string.IsNullOrWhiteSpace(request.CustomerName))
+    if (request.Customer is null)
+        return Results.BadRequest(new { Message = "Customer is required" });
+
+    if (string.IsNullOrWhiteSpace(request.Customer.Name))
         return Results.BadRequest(new { Message = "Customer name is required" });
 
-    if (string.IsNullOrWhiteSpace(request.CustomerEmail))
+    if (string.IsNullOrWhiteSpace(request.Customer.Email))
         return Results.BadRequest(new { Message = "Customer email is required" });
 
-    if (request.Quantity <= 0)
-        return Results.BadRequest(new { Message = "Quantity must be greater than zero" });
+    if (request.Items is null || request.Items.Count == 0)
+        return Results.BadRequest(new { Message = "Order must contain at least one item" });
+
+    if (request.Items.Any(i => i.Quantity <= 0))
+        return Results.BadRequest(new { Message = "Item quantity must be greater than zero" });
 
     // Forward Bearer token to ProductService
     var authHeader = httpContext.Request.Headers["Authorization"].FirstOrDefault();
     if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
         productClient.SetBearerToken(authHeader.Substring("Bearer ".Length));
 
-    // Validate product exists in ProductService
-    var product = await productClient.GetProductAsync(request.ProductId);
-    if (product == null)
-        return Results.BadRequest(new { Message = $"Product with Id {request.ProductId} not found in Product Service" });
+    // Validate every product once; stock is checked against the summed quantity per product
+    var products = new Dictionary<int, ProductDto>();
+    foreach (var group in request.Items.GroupBy(i => i.ProductId))
+    {
+        var product = await productClient.GetProductAsync(group.Key);
+        if (product == null)
+            return Results.BadRequest(new { Message = $"Product with Id {group.Key} not found in Product Service" });
 
-    if (!product.IsActive)
-        return Results.BadRequest(new { Message = $"Product '{product.Name}' is not active" });
+        if (!product.IsActive)
+            return Results.BadRequest(new { Message = $"Product '{product.Name}' is not active" });
 
-    if (product.Inventory.StockQuantity < request.Quantity)
-        return Results.BadRequest(new { Message = $"Insufficient stock. Available: {product.Inventory.StockQuantity}, Requested: {request.Quantity}" });
+        var requested = group.Sum(i => i.Quantity);
+        if (product.Inventory.StockQuantity < requested)
+            return Results.BadRequest(new { Message = $"Insufficient stock for '{product.Name}'. Available: {product.Inventory.StockQuantity}, Requested: {requested}" });
+
+        products[group.Key] = product;
+    }
+
+    var items = request.Items.Select(i =>
+    {
+        var product = products[i.ProductId];
+        return new OrderItem
+        {
+            ProductId = i.ProductId,
+            ProductName = product.Name,
+            UnitPrice = product.Price.Amount,
+            Quantity = i.Quantity,
+            LineTotal = product.Price.Amount * i.Quantity
+        };
+    }).ToList();
+
+    // Shipping address falls back to the customer address when omitted
+    var shippingAddress = request.Shipping?.Address ?? request.Customer.Address;
 
     var order = new Order
     {
-        ProductId = request.ProductId,
-        ProductName = product.Name,
-        CustomerName = request.CustomerName,
-        CustomerEmail = request.CustomerEmail,
-        Quantity = request.Quantity,
-        UnitPrice = product.Price.Amount,
-        TotalPrice = product.Price.Amount * request.Quantity,
+        CustomerName = request.Customer.Name,
+        CustomerEmail = request.Customer.Email,
+        CustomerStreet = request.Customer.Address?.Street,
+        CustomerCity = request.Customer.Address?.City,
+        CustomerPostalCode = request.Customer.Address?.PostalCode,
+        CustomerCountry = request.Customer.Address?.Country,
+        ShippingMethod = request.Shipping?.Method ?? ShippingMethod.Standard,
+        ShippingStreet = shippingAddress?.Street,
+        ShippingCity = shippingAddress?.City,
+        ShippingPostalCode = shippingAddress?.PostalCode,
+        ShippingCountry = shippingAddress?.Country,
+        ShippingNotes = request.Shipping?.Notes,
+        Items = items,
+        TotalPrice = items.Sum(i => i.LineTotal),
         Status = OrderStatus.Pending
     };
 

@@ -1,32 +1,19 @@
 using ApiTestFramework.Clients.AuthService;
-using Bogus;
+using ApiTestFramework.Steps.Builders.AuthService;
 
 namespace ApiTestFramework.Steps.DataGenerators;
 
 /// <summary>
-/// Bogus-based data generator for AuthService DTOs.
+/// Facade over the generated AuthService builders.
 /// </summary>
 public static class AuthDataGenerator
 {
-    private static readonly Faker _faker = new("en");
-
     public static RegisterRequest GenerateRegisterRequest()
-    {
-        return new RegisterRequest
-        {
-            Username = _faker.Internet.UserName() + _faker.Random.Number(1000, 9999),
-            Email = _faker.Internet.Email(),
-            Password = "TestPass123!",
-            Role = "User"
-        };
-    }
+        => new RegisterRequestBuilder().Build();
 
     public static LoginRequest GenerateLoginRequest(string username, string password)
-    {
-        return new LoginRequest
-        {
-            Username = username,
-            Password = password
-        };
-    }
+        => new LoginRequestBuilder()
+            .WithUsername(username)
+            .WithPassword(password)
+            .Build();
 }
