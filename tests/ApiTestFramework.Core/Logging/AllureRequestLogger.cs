@@ -64,11 +64,59 @@ public static class AllureRequestLogger
             sb.AppendLine(TryPrettyPrintJson(bodyContent));
         }
 
+        // Copy-paste reproduction (token masked)
+        sb.AppendLine();
+        sb.AppendLine("Reproduce with cURL:");
+        sb.AppendLine(BuildCurlSnippet(request, baseUrl, headers, queryParams, bodyParam));
+
         TryAddAttachment(
             $"Request — {request.Method} {request.Resource}",
             "text/plain",
             Encoding.UTF8.GetBytes(sb.ToString()),
             ".txt");
+    }
+
+    /// <summary>
+    /// Builds a runnable cURL command for the request. The Bearer token is
+    /// masked — paste a fresh token before running.
+    /// </summary>
+    private static string BuildCurlSnippet(
+        RestRequest request,
+        string baseUrl,
+        IReadOnlyList<RestSharp.Parameter> headers,
+        IReadOnlyList<RestSharp.Parameter> queryParams,
+        RestSharp.Parameter? bodyParam)
+    {
+        var url = $"{baseUrl}{request.Resource}";
+        if (queryParams.Count > 0)
+        {
+            var query = string.Join("&", queryParams.Select(q =>
+                $"{Uri.EscapeDataString(q.Name ?? "")}={Uri.EscapeDataString(q.Value?.ToString() ?? "")}"));
+            url += $"?{query}";
+        }
+
+        var sb = new StringBuilder();
+        sb.Append($"curl -X {request.Method.ToString().ToUpperInvariant()} '{url}'");
+
+        foreach (var h in headers)
+        {
+            var value = h.Value?.ToString() ?? string.Empty;
+            if (string.Equals(h.Name, "Authorization", StringComparison.OrdinalIgnoreCase)
+                && value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                value = "Bearer <TOKEN>";
+            }
+            sb.Append($" \\\n  -H '{h.Name}: {value}'");
+        }
+
+        if (bodyParam?.Value is not null)
+        {
+            sb.Append(" \\\n  -H 'Content-Type: application/json'");
+            var body = bodyParam.Value.ToString()!.Replace("'", "'\\''");
+            sb.Append($" \\\n  -d '{body}'");
+        }
+
+        return sb.ToString();
     }
 
     /// <summary>

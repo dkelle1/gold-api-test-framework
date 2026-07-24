@@ -1,0 +1,108 @@
+{
+  "openapi": "3.0.1",
+  "info": { "title": "Widget Service API (test fixture)", "version": "v1" },
+  "paths": {
+    "/api/widgets": {
+      "post": {
+        "tags": [ "Widgets" ],
+        "operationId": "CreateWidget",
+        "security": [ { "Bearer": [] } ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateWidgetRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WidgetResponse" }
+              }
+            }
+          },
+          "400": { "description": "Bad Request" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/widgets/{id}": {
+      "get": {
+        "tags": [ "Widgets" ],
+        "operationId": "GetWidgetById",
+        "security": [ { "Bearer": [] } ],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "format": "int32" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WidgetResponse" }
+              }
+            }
+          },
+          "404": { "description": "Not Found" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "Bearer": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "schemas": {
+      "CreateWidgetRequest": {
+        "type": "object",
+        "required": [ "name", "parts" ],
+        "properties": {
+          "name": { "type": "string" },
+          "contactEmail": { "type": "string", "format": "email" },
+          "ownerId": { "type": "integer", "format": "int32" },
+          "price": { "type": "number", "format": "decimal" },
+          "active": { "type": "boolean" },
+          "status": { "$ref": "#/components/schemas/WidgetStatus" },
+          "details": {
+            "nullable": true,
+            "oneOf": [ { "$ref": "#/components/schemas/DetailsRequest" } ]
+          },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "parts": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PartRequest" }
+          }
+        }
+      },
+      "DetailsRequest": {
+        "type": "object",
+        "properties": {
+          "note": { "type": "string", "nullable": true },
+          "city": { "type": "string" }
+        }
+      },
+      "PartRequest": {
+        "type": "object",
+        "required": [ "partId", "quantity" ],
+        "properties": {
+          "partId": { "type": "integer", "format": "int32" },
+          "quantity": { "type": "integer", "format": "int32" }
+        }
+      },
+      "WidgetStatus": {
+        "enum": [ "New", "Used", "Refurbished" ],
+        "type": "string"
+      },
+      "WidgetResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int32" },
+          "name": { "type": "string" }
+        }
+      }
+    }
+  }
+}

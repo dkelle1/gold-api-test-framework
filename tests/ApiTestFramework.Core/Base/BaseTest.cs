@@ -1,4 +1,5 @@
 using Allure.NUnit;
+using ApiTestFramework.Core.TestData;
 using NUnit.Framework;
 using Serilog;
 
@@ -27,11 +28,14 @@ public abstract class BaseTest
     }
 
     [TearDown]
-    public virtual void TearDown()
+    public virtual async Task TearDown()
     {
         var outcome = TestContext.CurrentContext.Result.Outcome.Status;
         Logger.Information("Test {Test} finished with status: {Status}",
             TestContext.CurrentContext.Test.Name, outcome);
+
+        // Delete resources this test created (orders before products — LIFO)
+        await TestDataRegistry.CleanupCurrentTestAsync(Logger);
     }
 
     [OneTimeTearDown]

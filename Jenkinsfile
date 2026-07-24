@@ -41,10 +41,73 @@ pipeline {
             }
         }
 
+        // Fast, service-free tests of the framework itself
+        // (SchemaExtractor, BuilderScaffolder, NegativeCaseGenerator, DriftChecker)
+        stage('Framework Unit Tests') {
+            agent {
+                docker {
+                    image "${DOTNET_IMAGE}"
+                    reuseNode true
+                }
+            }
+            steps {
+                sh """
+                    mkdir -p ${TEST_RESULTS_DIR}
+                    dotnet test tests/ApiTestFramework.OpenApi.Tests/ApiTestFramework.OpenApi.Tests.csproj \\
+                        -c Release --no-build \\
+                        --logger "trx;LogFileName=unit-results.trx" \\
+                        --results-directory ${TEST_RESULTS_DIR}
+                """
+            }
+        }
+
+        // Gate: committed *.g.cs builders and test scaffolds must match what the
+        // generator produces from the committed swagger files. A red build here
+        // means someone changed swagger/DTOs without running scripts/regenerate-all.ps1.
+        stage('Verify Generated Code') {
+            agent {
+                docker {
+                    image "${DOTNET_IMAGE}"
+                    reuseNode true
+                }
+            }
+            steps {
+                sh '''
+                    dotnet run --project tests/ApiTestFramework.Generator.Cli -c Release --no-build -- .
+                    git -c safe.directory='*' diff --exit-code -- \
+                        'tests/ApiTestFramework.Steps/Builders' \
+                        'tests/ApiTestFramework.Tests/Generated' \
+                        || { echo 'ERROR: generated code is stale — run scripts/regenerate-all.ps1 and commit.'; exit 1; }
+                '''
+            }
+        }
+
         stage('Start Services') {
             steps {
                 // --wait blocks until all container healthchecks pass (or timeout)
                 sh 'docker compose up -d --build --wait'
+            }
+        }
+
+        // Gate: the committed swagger files must structurally match what the
+        // running services actually serve (endpoints, schemas, property types).
+        // Soft differences (nullable/required flags) are warnings only.
+        stage('Swagger Drift Check') {
+            agent {
+                docker {
+                    image "${DOTNET_IMAGE}"
+                    args  "--network ${COMPOSE_PROJECT_NAME}_default"
+                    reuseNode true
+                }
+            }
+            steps {
+                sh '''
+                    mkdir -p live-swagger
+                    curl -sf http://auth-service:8080/swagger/v1/swagger.json    -o live-swagger/auth-swagger.json
+                    curl -sf http://product-service:8080/swagger/v1/swagger.json -o live-swagger/product-swagger.json
+                    curl -sf http://order-service:8080/swagger/v1/swagger.json   -o live-swagger/order-swagger.json
+                    dotnet run --project tests/ApiTestFramework.Generator.Cli -c Release --no-build -- check-drift live-swagger .
+                '''
             }
         }
 

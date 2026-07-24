@@ -89,6 +89,18 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = string.Empty;
 });
 
+// Correlate service logs with the API test that sent the request
+app.Use(async (context, next) =>
+{
+    var testId = context.Request.Headers["X-Test-Id"].FirstOrDefault();
+    if (!string.IsNullOrEmpty(testId))
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogInformation("[X-Test-Id: {TestId}] {Method} {Path}", testId, context.Request.Method, context.Request.Path);
+    }
+    await next();
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 

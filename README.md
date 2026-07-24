@@ -13,9 +13,10 @@ Complete solution with three .NET 8 microservices and a generic API test framewo
 - **ApiTestFramework.Core** — Generic request builder, API client, Autofac DI, Allure integration, FluentAssertions extensions, JWT token management
 - **ApiTestFramework.Clients** — NSwag-generated DTOs and placeholder DTOs + offline swagger files
 - **ApiTestFramework.Steps** — Step classes per service, generated fluent test-data builders (+ partial customizations), Bogus data generators
-- **ApiTestFramework.OpenApi** — OpenAPI spec loader, schema extractor, builder & test-case scaffolders
-- **ApiTestFramework.Generator.Cli** — console tool that regenerates builders and test scaffolds from swagger
-- **ApiTestFramework.Tests** — NUnit test fixtures (25 tests)
+- **ApiTestFramework.OpenApi** — OpenAPI spec loader, schema extractor, builder/test-case/negative-case scaffolders, swagger drift checker
+- **ApiTestFramework.OpenApi.Tests** — unit tests of the generator itself (33 tests, no services needed)
+- **ApiTestFramework.Generator.Cli** — console tool: regenerates builders + scaffolds, checks swagger drift (`check-drift`)
+- **ApiTestFramework.Tests** — NUnit test fixtures (25 hand-written + 19 generated at runtime from swagger)
 
 ## Tech Stack
 | Component | Technology |
@@ -238,6 +239,44 @@ nullable `oneOf` wrappers), and emits one partial builder class per schema. Stal
 files fail the post-regeneration build if they reference removed members — which is
 exactly the signal that a hand-written helper needs updating.
 
+### Test isolation & parallelism
+
+Every resource a step creates (product, order) is registered in `TestDataRegistry`
+and deleted automatically in `BaseTest.TearDown` — LIFO, so orders go before their
+products, and a 404 during cleanup (test deleted it itself) is ignored. Tests leave
+the database the way they found it, which enables parallel execution:
+fixtures run in parallel (`ParallelScope.Fixtures`, 4 workers).
+
+### Schema-driven negative tests
+
+`OrderServiceNegativeTests` has no hand-written cases: at run time,
+`NegativeCaseGenerator` reads `swagger/order-swagger.json`, builds a minimal valid
+payload, and emits one mutation per `required` constraint (missing property at any
+nesting depth, empty required array) — each expected to return 400. Add a `required`
+field to the contract and a new negative test appears by itself.
+
+### Authorization matrix
+
+`UnauthorizedMatrixTests` enumerates every endpoint that declares Bearer security in
+any swagger file and asserts it returns 401 without a token. A new protected endpoint
+is covered automatically; one that loses its security requirement drops out here and
+gets caught by the swagger drift gate instead.
+
+### Diagnostics
+
+- Every request carries an `X-Test-Id` header (the NUnit test full name); services log
+  it, so `docker compose logs` can be correlated with a specific failing test.
+- Every Allure request attachment ends with a ready-to-paste **cURL reproduction**
+  (Bearer token masked).
+
+### CI quality gates (Jenkinsfile)
+
+| Stage | Gate |
+|-------|------|
+| Framework Unit Tests | generator/extractor/drift-checker unit tests (no services needed) |
+| Verify Generated Code | regenerates builders + scaffolds and fails on `git diff` — committed `*.g.cs` must match committed swagger |
+| Swagger Drift Check | downloads live swagger from the running services and structurally compares it with the committed files (`check-drift`); hard drift fails the build, nullable/required differences are warnings |
+
 ### DTO Validation
 ```csharp
 // Full DTO comparison
@@ -256,3 +295,6 @@ response.ShouldMatchDtoExcluding(expectedProduct,
 | AuthService | 7 | Register, login, duplicate user, wrong password, unauthorized access |
 | ProductService | 7 | Create, get, get all, update, delete (valid & invalid scenarios) |
 | OrderService | 11 | Create (single/multi-item, nested address+shipping, invalid product, empty items), get, get all, update (nested customer), delete, full lifecycle |
+| OrderService negative (generated) | 7 | Required-constraint mutations derived from the swagger schema, expected 400 |
+| Security matrix (generated) | 12 | Every Bearer-protected endpoint × no token → 401 |
+| Framework unit tests | 33 | SchemaExtractor, BuilderScaffolder, NegativeCaseGenerator, SwaggerDriftChecker (separate project, no services) |

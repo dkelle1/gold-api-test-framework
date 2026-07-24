@@ -12,6 +12,15 @@
     <ProjectReference Include="..\ApiTestFramework.Core\ApiTestFramework.Core.csproj" />
     <ProjectReference Include="..\ApiTestFramework.Clients\ApiTestFramework.Clients.csproj" />
     <ProjectReference Include="..\ApiTestFramework.Steps\ApiTestFramework.Steps.csproj" />
+    <ProjectReference Include="..\ApiTestFramework.OpenApi\ApiTestFramework.OpenApi.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Offline swagger specs drive runtime-generated test cases
+         (negative payload mutations, 401 authorization matrix) -->
+    <Content Include="..\ApiTestFramework.Clients\swagger\*.json" Link="swagger\%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

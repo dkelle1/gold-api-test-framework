@@ -48,10 +48,12 @@ public class GlobalSetup
         // Acquire Bearer token via AuthService (direct call — no AllureStep context here)
         Log.Information("Acquiring Bearer token...");
         var authClient = ContainerProvider.ResolveNamed<ApiClient>("AuthService");
+        // Unique per run — reruns against the same database must not collide
+        var runId = Guid.NewGuid().ToString("N")[..8];
         var registerRequest = new RegisterRequest
         {
-            Username = "test_user_global",
-            Email = "test_global@test.com",
+            Username = $"test_user_{runId}",
+            Email = $"test_{runId}@test.com",
             Password = "TestPass123!",
             Role = "User"
         };

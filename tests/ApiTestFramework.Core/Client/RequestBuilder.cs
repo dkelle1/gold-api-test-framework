@@ -1,4 +1,5 @@
 using ApiTestFramework.Core.Auth;
+using NUnit.Framework;
 using RestSharp;
 
 namespace ApiTestFramework.Core.Client;
@@ -15,6 +16,7 @@ public class RequestBuilder
     private readonly Dictionary<string, string> _queryParameters = new();
     private readonly Dictionary<string, string> _pathSegments = new();
     private object? _body;
+    private string? _rawJsonBody;
     private string? _contentType;
     private int? _timeoutSeconds;
 
@@ -110,6 +112,16 @@ public class RequestBuilder
     }
 
     /// <summary>
+    /// Sets a raw JSON string as the request body, bypassing serialization.
+    /// Used by schema-driven negative tests to send deliberately malformed payloads.
+    /// </summary>
+    public RequestBuilder WithRawJsonBody(string json)
+    {
+        _rawJsonBody = json;
+        return this;
+    }
+
+    /// <summary>
     /// Sets the content type for the request.
     /// </summary>
     public RequestBuilder WithContentType(string contentType)
@@ -140,6 +152,19 @@ public class RequestBuilder
             _headers["Authorization"] = $"Bearer {TokenProvider.Token}";
         }
 
+        // Correlation header: lets service logs be matched to the test that
+        // sent the request (services log it; Allure attachments include it)
+        if (!_headers.ContainsKey("X-Test-Id"))
+        {
+            var testId = TestContext.CurrentContext?.Test?.FullName;
+            if (!string.IsNullOrEmpty(testId))
+            {
+                // Header values must be printable ASCII; test names may not be
+                var sanitized = new string(testId.Select(c => c is >= ' ' and <= '~' ? c : '_').ToArray());
+                _headers["X-Test-Id"] = sanitized.Length > 200 ? sanitized[..200] : sanitized;
+            }
+        }
+
         var resource = _resource;
 
         // Replace path segments
@@ -163,7 +188,11 @@ public class RequestBuilder
         }
 
         // Add body
-        if (_body != null)
+        if (_rawJsonBody != null)
+        {
+            request.AddStringBody(_rawJsonBody, ContentType.Json);
+        }
+        else if (_body != null)
         {
             if (_contentType != null)
             {

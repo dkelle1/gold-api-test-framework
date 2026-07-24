@@ -13,6 +13,8 @@ public partial class RegisterRequestBuilder
     /// Guarantees the built request always satisfies it, regardless of what
     /// heuristic the generator picked for the password field.
     /// </summary>
+    private bool _usernameOverridden;
+
     partial void OnBeforeBuild(RegisterRequest instance)
     {
         if (string.IsNullOrWhiteSpace(instance.Password) || instance.Password.Length < 8)
@@ -20,5 +22,20 @@ public partial class RegisterRequestBuilder
 
         if (string.IsNullOrWhiteSpace(instance.Role))
             instance.Role = "User";
+
+        // Generated default (name + 4 random digits) can collide across a big
+        // parallel suite — append a GUID fragment unless the test set its own.
+        if (!_usernameOverridden)
+        {
+            var baseName = instance.Username.Length > 21 ? instance.Username[..21] : instance.Username;
+            instance.Username = $"{baseName}_{Guid.NewGuid().ToString("N")[..8]}";
+        }
+    }
+
+    /// <summary>Sets an exact username, opting out of the uniqueness suffix.</summary>
+    public RegisterRequestBuilder WithExactUsername(string username)
+    {
+        _usernameOverridden = true;
+        return WithUsername(username);
     }
 }

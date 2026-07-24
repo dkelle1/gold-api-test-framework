@@ -25,6 +25,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuthService", "src\AuthServ
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApiTestFramework.Generator.Cli", "tests\ApiTestFramework.Generator.Cli\ApiTestFramework.Generator.Cli.csproj", "{179DA842-878C-4F27-8169-3FCA29BD6C89}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApiTestFramework.OpenApi.Tests", "tests\ApiTestFramework.OpenApi.Tests\ApiTestFramework.OpenApi.Tests.csproj", "{D09420BE-7716-4DCF-86E9-2C2612CCB74B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -70,6 +72,10 @@ Global
 		{179DA842-878C-4F27-8169-3FCA29BD6C89}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{179DA842-878C-4F27-8169-3FCA29BD6C89}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{179DA842-878C-4F27-8169-3FCA29BD6C89}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D09420BE-7716-4DCF-86E9-2C2612CCB74B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D09420BE-7716-4DCF-86E9-2C2612CCB74B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D09420BE-7716-4DCF-86E9-2C2612CCB74B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D09420BE-7716-4DCF-86E9-2C2612CCB74B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{C6CCF975-C880-458E-A974-DDD8C75F2787} = {1A2A3C2E-7966-45DB-8F57-6468E20CC13F}
@@ -80,5 +86,6 @@ Global
 		{7F98FA14-ED5A-4C38-B610-0B53F565FB2B} = {A95F2B66-0090-431F-BE18-8A79AD389E1B}
 		{8A04E931-334C-4AAD-9F54-E5A59D3BBDE5} = {1A2A3C2E-7966-45DB-8F57-6468E20CC13F}
 		{179DA842-878C-4F27-8169-3FCA29BD6C89} = {A95F2B66-0090-431F-BE18-8A79AD389E1B}
+		{D09420BE-7716-4DCF-86E9-2C2612CCB74B} = {A95F2B66-0090-431F-BE18-8A79AD389E1B}
 	EndGlobalSection
 EndGlobal

@@ -72,8 +72,9 @@ ApiTestFramework.Core    — infrastructure (ApiClient, RequestBuilder, TokenPro
 ApiTestFramework.Clients — NSwag-generated DTOs and HTTP clients (do not edit by hand)
 ApiTestFramework.Steps   — reusable steps (AuthServiceSteps, ProductServiceSteps, OrderServiceSteps) + Builders (generated + custom partials) + DataGenerators
 ApiTestFramework.Tests   — NUnit test fixtures (AuthCrudTests, ProductCrudTests, OrderCrudTests) + Generated/ test scaffolds (*.cs.txt)
-ApiTestFramework.OpenApi — OpenAPI spec parsing (SchemaExtractor) + builder/test-case scaffolding (BuilderScaffolder, TestCaseScaffolder)
-ApiTestFramework.Generator.Cli — dotnet run → regenerates builders + test scaffolds from swagger/*.json
+ApiTestFramework.OpenApi — OpenAPI spec parsing (SchemaExtractor) + scaffolding (BuilderScaffolder, TestCaseScaffolder, NegativeCaseGenerator) + SwaggerDriftChecker
+ApiTestFramework.OpenApi.Tests — unit tests of the generator infrastructure (run without services)
+ApiTestFramework.Generator.Cli — dotnet run → regenerates builders + test scaffolds; `-- check-drift <dir>` compares committed vs live swagger (CI gate)
 ```
 
 ### Key Classes

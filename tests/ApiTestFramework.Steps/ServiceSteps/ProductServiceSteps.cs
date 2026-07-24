@@ -5,6 +5,7 @@ using ApiTestFramework.Core.Assertions;
 using ApiTestFramework.Core.Client;
 using ApiTestFramework.Core.Constants;
 using ApiTestFramework.Core.DI;
+using ApiTestFramework.Core.TestData;
 using ApiTestFramework.Steps.DataGenerators;
 using RestSharp;
 using Serilog;
@@ -51,6 +52,9 @@ public class ProductServiceSteps
         var product = response.ShouldHaveData();
 
         _logger.Information("Created product with Id: {Id}", product.Id);
+
+        // Auto-delete after the test (a 404 during cleanup is fine)
+        TestDataRegistry.Register($"Product {product.Id}", () => DeleteProductAsync(product.Id));
         return product;
     }
 
