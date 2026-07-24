@@ -6,6 +6,7 @@ using ApiTestFramework.Core.Client;
 using ApiTestFramework.Core.Configuration;
 using ApiTestFramework.Core.Constants;
 using ApiTestFramework.Core.DI;
+using ApiTestFramework.Infrastructure;
 using NUnit.Framework;
 using Serilog;
 
@@ -18,6 +19,8 @@ namespace ApiTestFramework.Tests;
 [SetUpFixture]
 public class GlobalSetup
 {
+    private TestStack? _testStack;
+
     [OneTimeSetUp]
     public async Task RunBeforeAllTests()
     {
@@ -33,6 +36,33 @@ public class GlobalSetup
         // Load configuration
         var config = ConfigurationProvider.GetTestConfiguration();
         Log.Information("Environment: {Env}", config.Environment);
+
+        // Decide where the system under test comes from:
+        // External = configured URLs; TestContainers = spin up the full stack;
+        // Auto = probe the configured URLs, fall back to containers.
+        var mode = TestInfrastructure.ResolveMode(config.Infrastructure.Mode);
+        var useContainers = mode switch
+        {
+            InfrastructureMode.External => false,
+            InfrastructureMode.TestContainers => true,
+            _ => !await TestInfrastructure.IsReachableAsync(
+                     config.AuthService.BaseUrl, TimeSpan.FromSeconds(3))
+        };
+
+        if (useContainers)
+        {
+            Log.Information("Infrastructure mode: {Mode} — starting containerized stack " +
+                            "(first run builds service images, please wait)...", mode);
+            _testStack = await TestStack.StartAsync(TestInfrastructure.FindRepoRoot());
+            config.AuthService.BaseUrl = _testStack.AuthServiceUrl;
+            config.ProductService.BaseUrl = _testStack.ProductServiceUrl;
+            config.OrderService.BaseUrl = _testStack.OrderServiceUrl;
+        }
+        else
+        {
+            Log.Information("Infrastructure mode: {Mode} — using externally running services", mode);
+        }
+
         Log.Information("AuthService URL: {Url}", config.AuthService.BaseUrl);
         Log.Information("ProductService URL: {Url}", config.ProductService.BaseUrl);
         Log.Information("OrderService URL: {Url}", config.OrderService.BaseUrl);
@@ -71,11 +101,18 @@ public class GlobalSetup
     }
 
     [OneTimeTearDown]
-    public void RunAfterAllTests()
+    public async Task RunAfterAllTests()
     {
         Log.Information("=== Test Suite Finished ===");
         TokenProvider.Clear();
         ContainerProvider.Dispose();
+
+        if (_testStack is not null)
+        {
+            Log.Information("Stopping containerized stack...");
+            await _testStack.DisposeAsync();
+        }
+
         Log.CloseAndFlush();
     }
 }

@@ -13,6 +13,7 @@
     <ProjectReference Include="..\ApiTestFramework.Clients\ApiTestFramework.Clients.csproj" />
     <ProjectReference Include="..\ApiTestFramework.Steps\ApiTestFramework.Steps.csproj" />
     <ProjectReference Include="..\ApiTestFramework.OpenApi\ApiTestFramework.OpenApi.csproj" />
+    <ProjectReference Include="..\ApiTestFramework.Infrastructure\ApiTestFramework.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

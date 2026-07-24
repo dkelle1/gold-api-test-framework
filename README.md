@@ -13,10 +13,11 @@ Complete solution with three .NET 8 microservices and a generic API test framewo
 - **ApiTestFramework.Core** — Generic request builder, API client, Autofac DI, Allure integration, FluentAssertions extensions, JWT token management
 - **ApiTestFramework.Clients** — NSwag-generated DTOs and placeholder DTOs + offline swagger files
 - **ApiTestFramework.Steps** — Step classes per service, generated fluent test-data builders (+ partial customizations), Bogus data generators
-- **ApiTestFramework.OpenApi** — OpenAPI spec loader, schema extractor, builder/test-case/negative-case scaffolders, swagger drift checker
-- **ApiTestFramework.OpenApi.Tests** — unit tests of the generator itself (33 tests, no services needed)
+- **ApiTestFramework.OpenApi** — OpenAPI spec loader, schema extractor, builder/test-case/negative-case scaffolders, swagger drift checker, response schema validator
+- **ApiTestFramework.OpenApi.Tests** — unit tests of the generator itself (43 tests, no services needed)
+- **ApiTestFramework.Infrastructure** — Testcontainers stack (SQL Server + Redis + the three services built from their Dockerfiles)
 - **ApiTestFramework.Generator.Cli** — console tool: regenerates builders + scaffolds, checks swagger drift (`check-drift`)
-- **ApiTestFramework.Tests** — NUnit test fixtures (25 hand-written + 19 generated at runtime from swagger)
+- **ApiTestFramework.Tests** — NUnit test fixtures (27 hand-written + 19 generated at runtime from swagger)
 
 ## Tech Stack
 | Component | Technology |
@@ -55,6 +56,27 @@ All ProductService and OrderService endpoints require a valid JWT Bearer token. 
 ```
 
 ## Quick Start
+
+### Zero-setup (Docker required)
+
+```bash
+dotnet build ApiTestFramework.sln
+dotnet test tests/ApiTestFramework.Tests
+```
+
+That's it. In the default `Auto` infrastructure mode the suite probes the
+configured service URLs; when nothing is running it starts the whole stack
+itself with **Testcontainers** — SQL Server, Redis and the three services
+built from their Dockerfiles on a private network — and tears it down after
+the run (the Ryuk reaper cleans up even if the process dies). The first run
+builds the service images; later runs reuse the Docker cache.
+
+Modes (`Infrastructure:Mode` in `appsettings.test.json` or env var `TEST_Infrastructure__Mode`):
+- `Auto` (default) — use running services if reachable, else Testcontainers
+- `External` — always use configured URLs (CI runs with docker compose)
+- `TestContainers` — always start a fresh containerized stack
+
+### Manual setup (alternative)
 
 ### 1. Start the microservices
 ```bash
@@ -262,6 +284,15 @@ any swagger file and asserts it returns 401 without a token. A new protected end
 is covered automatically; one that loses its security requirement drops out here and
 gets caught by the swagger drift gate instead.
 
+### Response contract validation
+
+`ResponseContractTests` fetch raw JSON from the live services and validate it
+field-by-field against the swagger response schemas (`JsonSchemaValidator`):
+undeclared properties, missing non-nullable fields and type mismatches are
+violations at any nesting depth. Typed deserialization would silently ignore
+all of these. Together with the drift gate this closes the loop:
+spec ⇄ service (drift check) and wire format ⇄ spec (contract tests).
+
 ### Diagnostics
 
 - Every request carries an `X-Test-Id` header (the NUnit test full name); services log
@@ -297,4 +328,5 @@ response.ShouldMatchDtoExcluding(expectedProduct,
 | OrderService | 11 | Create (single/multi-item, nested address+shipping, invalid product, empty items), get, get all, update (nested customer), delete, full lifecycle |
 | OrderService negative (generated) | 7 | Required-constraint mutations derived from the swagger schema, expected 400 |
 | Security matrix (generated) | 12 | Every Bearer-protected endpoint × no token → 401 |
-| Framework unit tests | 33 | SchemaExtractor, BuilderScaffolder, NegativeCaseGenerator, SwaggerDriftChecker (separate project, no services) |
+| Contracts | 2 | Raw Order/Product responses validated field-by-field against swagger response schemas |
+| Framework unit tests | 43 | SchemaExtractor, BuilderScaffolder, NegativeCaseGenerator, SwaggerDriftChecker, JsonSchemaValidator (separate project, no services) |

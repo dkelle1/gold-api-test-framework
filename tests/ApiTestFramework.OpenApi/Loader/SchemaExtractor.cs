@@ -63,6 +63,20 @@ public static class SchemaExtractor
         return result;
     }
 
+    /// <summary>
+    /// Returns every schema in components/schemas (requests and responses) —
+    /// used by response contract validation, where response schemas matter too.
+    /// </summary>
+    public static IReadOnlyList<SchemaDefinition> GetAllSchemas(OpenApiDocument document)
+    {
+        var components = document.Components?.Schemas
+            ?? new Dictionary<string, OpenApiSchema>();
+
+        return components
+            .Select(kv => ToDefinition(kv.Key, kv.Value, components))
+            .ToList();
+    }
+
     private static SchemaDefinition ToDefinition(
         string name,
         OpenApiSchema schema,

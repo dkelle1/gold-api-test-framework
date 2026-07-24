@@ -127,6 +127,8 @@ pipeline {
                     export TEST_AuthService__BaseUrl=http://auth-service:8080
                     export TEST_ProductService__BaseUrl=http://product-service:8080
                     export TEST_OrderService__BaseUrl=http://order-service:8080
+                    # CI runs against docker compose — never let the suite try Testcontainers
+                    export TEST_Infrastructure__Mode=External
                     dotnet test tests/ApiTestFramework.Tests/ApiTestFramework.Tests.csproj \\
                         -c Release --no-build \\
                         --logger "trx;LogFileName=results.trx" \\
