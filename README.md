@@ -256,3 +256,9 @@ response.ShouldMatchDtoExcluding(expectedProduct,
 | AuthService | 7 | Register, login, duplicate user, wrong password, unauthorized access |
 | ProductService | 7 | Create, get, get all, update, delete (valid & invalid scenarios) |
 | OrderService | 11 | Create (single/multi-item, nested address+shipping, invalid product, empty items), get, get all, update (nested customer), delete, full lifecycle |
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE). See [NOTICE](NOTICE) for copyright information.
+
+Note: `FluentAssertions` is pinned to 7.x (Apache 2.0). Versions 8.0+ use a commercial license that requires a paid license for commercial use.
