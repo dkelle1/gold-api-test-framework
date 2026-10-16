@@ -58,7 +58,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // Destructive operations are restricted to users with the Admin role
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+});
 
 // EF Core — SQL Server
 builder.Services.AddDbContext<ProductDbContext>(options =>
@@ -180,8 +184,9 @@ app.MapDelete("/api/products/{id:int}", async (int id, IProductRepository repo) 
 .WithName("DeleteProduct")
 .WithTags("Products")
 .Produces(StatusCodes.Status204NoContent)
+.Produces(StatusCodes.Status403Forbidden)
 .Produces(StatusCodes.Status404NotFound)
-.RequireAuthorization();
+.RequireAuthorization("AdminOnly");
 
 app.Run();
 

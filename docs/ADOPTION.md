@@ -188,14 +188,20 @@ AuthenticationContext.Provider =
 
 ### Per-request overrides (negative tests etc.)
 
-Auto-injection only happens when the test hasn't set the same header itself:
+Auto-injection only happens when the test hasn't chosen auth itself
+(the last auth-related call wins):
 
 ```csharp
-// 401 scenario — suppress auth by setting the header explicitly
+// 401 scenario — send no authentication header at all
+// (also suppresses the provider's header, e.g. X-Api-Key)
 RequestBuilder.Create().WithMethod(Method.Get).WithPath("/api/products")
-    .WithHeader("Authorization", "");
+    .WithoutAuth();
 
-// different identity for one request
+// named identity registered in TokenProvider (Identities section / RegisterIdentityAsync)
+RequestBuilder.Create().WithMethod(Method.Get).WithPath("/api/products")
+    .AsIdentity("admin");
+
+// raw token for one request
 RequestBuilder.Create().WithMethod(Method.Get).WithPath("/api/products")
     .WithBearerToken(otherUsersToken);
 ```

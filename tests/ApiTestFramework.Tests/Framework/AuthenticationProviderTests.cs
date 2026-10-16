@@ -168,6 +168,42 @@ public class AuthenticationProviderTests : BaseTest
         GetHeader(request, "Authorization").Should().Be("Bearer explicit-token");
     }
 
+    [Test]
+    public void RequestBuilder_WithoutAuth_SuppressesProviderHeader()
+    {
+        AuthenticationContext.Provider = new ApiKeyAuthenticationProvider("the-key", "X-Api-Key");
+
+        var request = RequestBuilder.Create()
+            .WithMethod(Method.Get)
+            .WithPath("/api/anything")
+            .WithoutAuth()
+            .Build();
+
+        GetHeader(request, "X-Api-Key").Should().BeNull();
+        GetHeader(request, "Authorization").Should().BeNull();
+    }
+
+    [Test]
+    public void RequestBuilder_AsIdentity_WinsOverProvider()
+    {
+        AuthenticationContext.Provider = new StaticTokenAuthenticationProvider("auto-token");
+        TokenProvider.SetToken("unit-test-identity", "identity-token");
+        try
+        {
+            var request = RequestBuilder.Create()
+                .WithMethod(Method.Get)
+                .WithPath("/api/anything")
+                .AsIdentity("unit-test-identity")
+                .Build();
+
+            GetHeader(request, "Authorization").Should().Be("Bearer identity-token");
+        }
+        finally
+        {
+            TokenProvider.Remove("unit-test-identity");
+        }
+    }
+
     private static string? GetHeader(RestRequest request, string name)
         => request.Parameters
             .FirstOrDefault(p => p.Type == ParameterType.HttpHeader && p.Name == name)

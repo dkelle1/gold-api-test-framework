@@ -152,7 +152,7 @@ public class AuthCrudTests : BaseTest
             RequestBuilder.Create()
                 .WithMethod(RestSharp.Method.Get)
                 .WithPath(ProductServiceRoutes.Base)
-                .WithHeader("Authorization", "")); // Explicitly clear auth header
+                .WithoutAuth());
 
         // Assert
         response.ShouldHaveStatusCode(HttpStatusCode.Unauthorized);

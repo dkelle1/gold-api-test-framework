@@ -14,17 +14,47 @@ namespace ApiTestFramework.Steps.ServiceSteps;
 /// <summary>
 /// Step class for ProductService operations.
 /// Used to prepare test data (e.g., creating products needed by OrderService tests).
+/// By default requests use the global token; bind a different identity per instance
+/// via AsIdentity(name) or WithToken(token).
 /// </summary>
 public class ProductServiceSteps
 {
     private readonly ApiClient _client;
     private readonly ILogger _logger;
+    private readonly string? _identity;
+    private readonly string? _bearerToken;
 
-    public ProductServiceSteps()
+    public ProductServiceSteps() : this(identity: null, bearerToken: null)
+    {
+    }
+
+    private ProductServiceSteps(string? identity, string? bearerToken)
     {
         _client = ContainerProvider.ResolveNamed<ApiClient>("ProductService");
         _logger = Log.ForContext<ProductServiceSteps>();
+        _identity = identity;
+        _bearerToken = bearerToken;
     }
+
+    /// <summary>
+    /// Returns a copy of these steps that sends every request as the given
+    /// named identity registered in TokenProvider (e.g. "admin").
+    /// </summary>
+    public ProductServiceSteps AsIdentity(string identity) => new(identity, bearerToken: null);
+
+    /// <summary>
+    /// Returns a copy of these steps that sends every request with the given Bearer token.
+    /// </summary>
+    public ProductServiceSteps WithToken(string bearerToken) => new(identity: null, bearerToken: bearerToken);
+
+    /// <summary>
+    /// Applies the bound identity/token (if any) to a request builder.
+    /// Without a binding the request falls back to the default auto-injected token.
+    /// </summary>
+    private RequestBuilder Authorized(RequestBuilder builder) =>
+        _bearerToken != null ? builder.WithBearerToken(_bearerToken)
+        : _identity != null ? builder.AsIdentity(_identity)
+        : builder;
 
     /// <summary>
     /// Creates a product with random data and returns the created product.
@@ -45,7 +75,7 @@ public class ProductServiceSteps
         _logger.Information("Creating product: {Name}", createRequest.Name);
 
         var response = await _client.SendAsync<Product>(
-            RequestFactory.Post(ProductServiceRoutes.Base, createRequest));
+            Authorized(RequestFactory.Post(ProductServiceRoutes.Base, createRequest)));
 
         response.ShouldHaveStatusCode(HttpStatusCode.Created);
         var product = response.ShouldHaveData();
@@ -61,10 +91,10 @@ public class ProductServiceSteps
     public async Task<RestResponse<Product>> GetProductAsync(int id)
     {
         var response = await _client.SendAsync<Product>(
-            RequestBuilder.Create()
+            Authorized(RequestBuilder.Create()
                 .WithMethod(Method.Get)
                 .WithPath(ProductServiceRoutes.ById)
-                .WithPathSegment("id", id));
+                .WithPathSegment("id", id)));
 
         return response;
     }
@@ -76,7 +106,7 @@ public class ProductServiceSteps
     public async Task<RestResponse<List<Product>>> GetAllProductsAsync()
     {
         var response = await _client.SendAsync<List<Product>>(
-            RequestFactory.Get(ProductServiceRoutes.Base));
+            Authorized(RequestFactory.Get(ProductServiceRoutes.Base)));
 
         return response;
     }
@@ -88,11 +118,11 @@ public class ProductServiceSteps
     public async Task<RestResponse<Product>> UpdateProductAsync(int id, UpdateProductRequest updateRequest)
     {
         var response = await _client.SendAsync<Product>(
-            RequestBuilder.Create()
+            Authorized(RequestBuilder.Create()
                 .WithMethod(Method.Put)
                 .WithPath(ProductServiceRoutes.ById)
                 .WithPathSegment("id", id)
-                .WithBody(updateRequest));
+                .WithBody(updateRequest)));
 
         return response;
     }
@@ -104,10 +134,10 @@ public class ProductServiceSteps
     public async Task<RestResponse> DeleteProductAsync(int id)
     {
         var response = await _client.SendAsync(
-            RequestBuilder.Create()
+            Authorized(RequestBuilder.Create()
                 .WithMethod(Method.Delete)
                 .WithPath(ProductServiceRoutes.ById)
-                .WithPathSegment("id", id));
+                .WithPathSegment("id", id)));
 
         return response;
     }

@@ -8,8 +8,8 @@ namespace ApiTestFramework.Steps.DataGenerators;
 /// </summary>
 public static class AuthDataGenerator
 {
-    public static RegisterRequest GenerateRegisterRequest()
-        => new RegisterRequestBuilder().Build();
+    public static RegisterRequest GenerateRegisterRequest(string role = "User")
+        => new RegisterRequestBuilder().WithRole(role).Build();
 
     public static LoginRequest GenerateLoginRequest(string username, string password)
         => new LoginRequestBuilder()

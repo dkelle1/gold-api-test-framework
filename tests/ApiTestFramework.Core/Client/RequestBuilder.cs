@@ -17,6 +17,8 @@ public class RequestBuilder
     private object? _body;
     private string? _contentType;
     private int? _timeoutSeconds;
+    private string? _identity;
+    private bool _suppressAuth;
 
     private RequestBuilder() { }
 
@@ -72,10 +74,16 @@ public class RequestBuilder
 
     /// <summary>
     /// Adds a custom header to the request.
+    /// An explicit Authorization header overrides AsIdentity/WithoutAuth.
     /// </summary>
     public RequestBuilder WithHeader(string name, string value)
     {
         _headers[name] = value;
+        if (name.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
+        {
+            _identity = null;
+            _suppressAuth = false;
+        }
         return this;
     }
 
@@ -86,7 +94,7 @@ public class RequestBuilder
     {
         foreach (var header in headers)
         {
-            _headers[header.Key] = header.Value;
+            WithHeader(header.Key, header.Value);
         }
         return this;
     }
@@ -97,6 +105,33 @@ public class RequestBuilder
     public RequestBuilder WithBearerToken(string token)
     {
         _headers["Authorization"] = $"Bearer {token}";
+        _identity = null;
+        _suppressAuth = false;
+        return this;
+    }
+
+    /// <summary>
+    /// Sends the request as the given named identity (e.g. "admin").
+    /// The token is resolved from TokenProvider at build time and overrides
+    /// the default auto-injected token. The last auth-related call wins.
+    /// </summary>
+    public RequestBuilder AsIdentity(string identity)
+    {
+        _identity = identity;
+        _headers.Remove("Authorization");
+        _suppressAuth = false;
+        return this;
+    }
+
+    /// <summary>
+    /// Sends the request without any Authorization header, disabling automatic
+    /// token injection. Useful for unauthorized (401) test scenarios.
+    /// </summary>
+    public RequestBuilder WithoutAuth()
+    {
+        _suppressAuth = true;
+        _identity = null;
+        _headers.Remove("Authorization");
         return this;
     }
 
@@ -129,16 +164,26 @@ public class RequestBuilder
 
     /// <summary>
     /// Builds the RestRequest from the configured parameters.
-    /// Automatically injects the authentication header from the active
+    /// Auth resolution order: WithoutAuth() sends no authentication header at all;
+    /// AsIdentity() uses the named token from TokenProvider; an explicitly set
+    /// header is kept as-is; otherwise the header produced by the active
     /// <see cref="AuthenticationContext.Provider"/> (Bearer token, API key,
-    /// OAuth2, ... depending on configuration) unless the same header has
-    /// been set explicitly — so 401-scenario tests can opt out via
-    /// <c>WithHeader("Authorization", "")</c>.
+    /// OAuth2, ... depending on configuration) is auto-injected.
     /// </summary>
     public RestRequest Build()
     {
         var authHeader = AuthenticationContext.Provider.GetAuthenticationHeader();
-        if (authHeader is not null && !_headers.ContainsKey(authHeader.Name))
+        if (_suppressAuth)
+        {
+            _headers.Remove("Authorization");
+            if (authHeader is not null)
+                _headers.Remove(authHeader.Name);
+        }
+        else if (_identity != null)
+        {
+            _headers["Authorization"] = $"Bearer {TokenProvider.GetRequiredToken(_identity)}";
+        }
+        else if (authHeader is not null && !_headers.ContainsKey(authHeader.Name))
         {
             _headers[authHeader.Name] = authHeader.Value;
         }
