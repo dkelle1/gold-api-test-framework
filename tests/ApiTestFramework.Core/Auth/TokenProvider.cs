@@ -55,6 +55,11 @@ public static class TokenProvider
     public static IReadOnlyCollection<string> RegisteredIdentities => _tokens.Keys.ToArray();
 
     /// <summary>
+    /// Removes the token of a single named identity (other identities are kept).
+    /// </summary>
+    public static void Remove(string identity) => _tokens.TryRemove(identity, out _);
+
+    /// <summary>
     /// Clears all stored tokens (called during teardown).
     /// </summary>
     public static void Clear() => _tokens.Clear();
