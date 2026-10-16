@@ -320,7 +320,7 @@ What gets regenerated where:
 | DTO clients | `Clients/Dtos` (NSwag) | swagger | no — regenerate |
 | Builders | `Steps/Builders/<Service>/Generated/*.g.cs` | swagger request schemas | no — regenerate |
 | Builder customizations | `Steps/Builders/Custom/*.cs` | hand-written | yes (partial classes) |
-| Test scaffolds | `Tests/Generated/*.cs.txt` | swagger endpoints | promote to `.cs` by hand |
+| Test scaffolds | `Tests/Generated/*.cs.txt` | documented response codes per endpoint (verb-specific scenarios: success, 400, 401, 403, 404, 409, ...) | promote to `.cs` by hand |
 
 The generator (`ApiTestFramework.Generator.Cli`) walks each swagger file, takes the
 transitive closure of schemas reachable from request bodies (nested objects, arrays,
