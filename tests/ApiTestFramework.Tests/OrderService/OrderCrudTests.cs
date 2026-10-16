@@ -20,9 +20,8 @@ public class OrderCrudTests : BaseTest
     private OrderServiceSteps _orderSteps = null!;
     private ProductServiceSteps _productSteps = null!;
 
-    public override void OneTimeSetUp()
+    protected override void OnFixtureSetUp()
     {
-        base.OneTimeSetUp();
         _orderSteps = new OrderServiceSteps();
         _productSteps = new ProductServiceSteps();
     }

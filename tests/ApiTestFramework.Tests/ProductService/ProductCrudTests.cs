@@ -19,9 +19,8 @@ public class ProductCrudTests : BaseTest
     private ProductServiceSteps _steps = null!;
     private ProductServiceSteps _adminSteps = null!;
 
-    public override void OneTimeSetUp()
+    protected override void OnFixtureSetUp()
     {
-        base.OneTimeSetUp();
         _steps = new ProductServiceSteps();
         // DELETE /api/products/{id} requires the Admin role
         _adminSteps = _steps.AsIdentity(TestIdentities.Admin);
