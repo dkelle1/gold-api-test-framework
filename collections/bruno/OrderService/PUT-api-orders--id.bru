@@ -1,0 +1,41 @@
+meta {
+  name: PUT /api/orders/{id}
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{orderBaseUrl}}/api/orders/{id}
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 1
+}
+
+body:json {
+  {
+    "status": "Pending",
+    "customer": {
+      "name": "Sample Name",
+      "email": "qa.tester@example.com",
+      "address": {
+        "street": "sample-string",
+        "city": "sample-string",
+        "postalCode": "sample-string",
+        "country": "sample-string"
+      }
+    },
+    "shipping": {
+      "method": "Standard",
+      "address": {
+        "street": "sample-string",
+        "city": "sample-string",
+        "postalCode": "sample-string",
+        "country": "sample-string"
+      },
+      "notes": "sample-string"
+    }
+  }
+}

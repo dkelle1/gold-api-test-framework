@@ -1,0 +1,31 @@
+meta {
+  name: POST /api/auth/register
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{authBaseUrl}}/api/auth/register
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "user_{{uniq}}",
+    "email": "user_{{uniq}}@example.com",
+    "password": "P@ssw0rd_123!",
+    "role": "User"
+  }
+}
+
+script:pre-request {
+  bru.setVar('uniq', Date.now().toString());
+}
+
+script:post-response {
+  const token = res.body?.token?.accessToken;
+  if (token) {
+    bru.setEnvVar('accessToken', token);
+  }
+}

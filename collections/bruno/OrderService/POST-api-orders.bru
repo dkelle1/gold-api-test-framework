@@ -1,0 +1,42 @@
+meta {
+  name: POST /api/orders
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{orderBaseUrl}}/api/orders
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "customer": {
+      "name": "Sample Name",
+      "email": "qa.tester@example.com",
+      "address": {
+        "street": "sample-string",
+        "city": "sample-string",
+        "postalCode": "sample-string",
+        "country": "sample-string"
+      }
+    },
+    "items": [
+      {
+        "productId": 1,
+        "quantity": 1
+      }
+    ],
+    "shipping": {
+      "method": "Standard",
+      "address": {
+        "street": "sample-string",
+        "city": "sample-string",
+        "postalCode": "sample-string",
+        "country": "sample-string"
+      },
+      "notes": "sample-string"
+    }
+  }
+}

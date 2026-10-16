@@ -1,6 +1,16 @@
 # API Test Framework
 
-Complete solution with three .NET 8 microservices and a generic API test framework with JWT authentication.
+Complete solution with three .NET 8 microservices and a generic API test framework with pluggable authentication.
+
+> **Reusing this framework for another product/company?** See
+> [docs/ADOPTION.md](docs/ADOPTION.md) — step-by-step porting guide, including
+> how to switch to a different authorization scheme (OAuth2 client credentials,
+> API key, static token, fully custom) without changing framework code.
+
+**Testing policy:** all functional/integration tests are written in .NET
+(NUnit). k6 (JavaScript) is the only exception, used exclusively for load
+testing. The Python utilities in `tools/` are supporting tooling (generators,
+mock server, diagnostics), not a test layer.
 
 ## Architecture
 
@@ -15,7 +25,7 @@ Complete solution with three .NET 8 microservices and a generic API test framewo
 - **ApiTestFramework.Steps** — Step classes per service, generated fluent test-data builders (+ partial customizations), Bogus data generators
 - **ApiTestFramework.OpenApi** — OpenAPI spec loader, schema extractor, builder & test-case scaffolders
 - **ApiTestFramework.Generator.Cli** — console tool that regenerates builders and test scaffolds from swagger
-- **ApiTestFramework.Tests** — NUnit test fixtures (29 tests)
+- **ApiTestFramework.Tests** — NUnit test fixtures (43 tests)
 
 ## Tech Stack
 | Component | Technology |
@@ -30,14 +40,37 @@ Complete solution with three .NET 8 microservices and a generic API test framewo
 | Assertions | FluentAssertions |
 | Reporting | Allure (with full request/response logging) |
 | CI/CD | Jenkins (Jenkinsfile) |
+| Load Testing | k6 (scripts generated from OpenAPI — `tools/generate_k6.py`) |
+| Fuzz / Contract Testing | Schemathesis (`tools/run_schemathesis.py`) |
+| Smoke Testing | OpenAPI-driven Python runner (`tools/smoke_runner.py`) |
+| API Exploration | Generated Postman & Bruno collections (`tools/generate_collections.py`) |
 
 ## Authentication Flow
 
-All ProductService and OrderService endpoints require a valid JWT Bearer token. The test framework handles this automatically:
+Authentication is **pluggable** — `RequestBuilder.Build()` consults the active
+`IAuthenticationProvider` (selected by the `Authentication` section of
+`appsettings.test.json`) and attaches the right header to every request.
+Built-in modes:
+
+| Mode | Use case | Code required |
+|------|----------|---------------|
+| `SessionToken` (default) | Token acquired once at suite start (login flow) and stored in `TokenProvider` | login call in `GlobalSetup` |
+| `OAuth2ClientCredentials` | IdentityServer / Auth0 / Keycloak / Azure AD M2M — fetched & auto-refreshed | none (config only) |
+| `ApiKey` | Key in a configurable header (e.g. `X-Api-Key`) | none (config only) |
+| `StaticToken` | Long-lived PAT from a CI secret / env var | none (config only) |
+| `None` | Anonymous APIs | none |
+| `Custom` | Anything else (HMAC, cookies, ...) — implement `IAuthenticationProvider` | one small class |
+
+Secrets are supplied via `TEST_`-prefixed environment variables
+(`TEST_Authentication__ApiKey`, `TEST_Authentication__OAuth2__ClientSecret`, ...).
+See [docs/ADOPTION.md](docs/ADOPTION.md) for full examples of every mode.
+
+This demo system uses the default `SessionToken` mode — all ProductService and
+OrderService endpoints require a valid JWT Bearer token:
 
 1. **GlobalSetup** registers a default user via AuthService and stores the token in `TokenProvider`
 2. **GlobalSetup** additionally registers every identity from the `Identities` section of `appsettings.test.json` (e.g. `admin` with role `Admin`) and stores each token in `TokenProvider` under its name
-3. **RequestBuilder.Build()** auto-injects the default Bearer token into every request that doesn't specify auth explicitly
+3. **RequestBuilder.Build()** auto-injects the default Bearer token (via the active `IAuthenticationProvider`) into every request that doesn't specify auth explicitly
 4. Individual requests can switch identity via `AsIdentity("admin")`, `WithBearerToken(raw)` or send anonymously via `WithoutAuth()`
 5. OrderService forwards the token to ProductService when validating products (cross-service calls)
 
@@ -108,8 +141,17 @@ allure serve TestResults/allure-results
 │   │       └── Custom/                 # hand-written partial halves (survive regeneration)
 │   ├── ApiTestFramework.OpenApi/       # OpenAPI loader, SchemaExtractor, BuilderScaffolder, TestCaseScaffolder
 │   ├── ApiTestFramework.Generator.Cli/ # dotnet run → regenerates builders + test scaffolds
-│   └── ApiTestFramework.Tests/         # NUnit test fixtures (Auth, Product, Order — 29 tests)
+│   └── ApiTestFramework.Tests/         # NUnit test fixtures (Auth, Product, Order, Framework — 43 tests)
 │       └── Generated/                  # *.cs.txt test scaffolds (promote to .cs by hand)
+├── tools/                              # Generic OpenAPI-driven Python tooling (see tools/README.md)
+│   ├── openapi_common.py               #   shared lib: service registry, spec parsing, payload generation
+│   ├── generate_collections.py         #   → collections/ (Postman + Bruno, JWT pre-wired)
+│   ├── generate_k6.py                  #   → perf/k6/ (load-test scripts: smoke/load/stress)
+│   ├── smoke_runner.py                 #   live smoke + contract validation (stdlib only)
+│   ├── run_schemathesis.py             #   property-based fuzzing wrapper
+│   └── mock_server.py                  #   in-memory mock of all services from the specs
+├── collections/                        # Generated Postman + Bruno collections
+├── perf/k6/                            # Generated k6 load-test scripts
 ├── scripts/
 │   ├── refresh-swagger.ps1             # pull swagger.json from running services
 │   └── regenerate-all.ps1              # full regeneration pipeline
@@ -117,10 +159,27 @@ allure serve TestResults/allure-results
 └── ApiTestFramework.sln
 ```
 
+## Generic OpenAPI Tooling (Python)
+
+Everything under `tools/` is generated from the committed swagger specs —
+adding a new microservice only requires one registry entry in
+`tools/openapi_common.py`. See [tools/README.md](tools/README.md) for details.
+
+```bash
+python3 tools/smoke_runner.py                # smoke + contract check of live services
+python3 tools/mock_server.py                 # run all services as in-memory mocks
+python3 tools/generate_collections.py        # regenerate Postman/Bruno collections
+python3 tools/generate_k6.py                 # regenerate k6 load-test scripts
+k6 run -e PROFILE=load perf/k6/all-services.js
+python3 tools/run_schemathesis.py            # fuzz every endpoint (pip install -r tools/requirements.txt)
+```
+
 ## Key Framework Features
 
-### Automatic Bearer Token Injection
-The `RequestBuilder` automatically attaches the default JWT token from `TokenProvider` to every request. No manual token handling needed in tests:
+### Automatic Authentication Header Injection
+The `RequestBuilder` automatically attaches the header produced by the active
+`IAuthenticationProvider` (in this demo: the JWT from `TokenProvider`) to every
+request. No manual token handling needed in tests:
 
 ```csharp
 // Token is auto-injected — no need to call WithBearerToken()
@@ -288,6 +347,7 @@ response.ShouldMatchDtoExcluding(expectedProduct,
 | AuthService | 7 | Register, login, duplicate user, wrong password, unauthorized access |
 | ProductService | 11 | Create, get, get all, update, delete (valid & invalid scenarios) + role-based authorization (admin vs user vs anonymous) |
 | OrderService | 11 | Create (single/multi-item, nested address+shipping, invalid product, empty items), get, get all, update (nested customer), delete, full lifecycle |
+| Framework | 14 | Unit tests for the pluggable authentication layer (providers, factory, RequestBuilder injection, WithoutAuth/AsIdentity precedence) — run without live services |
 
 ## License
 

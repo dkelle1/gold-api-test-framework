@@ -164,25 +164,28 @@ public class RequestBuilder
 
     /// <summary>
     /// Builds the RestRequest from the configured parameters.
-    /// Auth resolution order: WithoutAuth() sends no Authorization header;
+    /// Auth resolution order: WithoutAuth() sends no authentication header at all;
     /// AsIdentity() uses the named token from TokenProvider; an explicitly set
-    /// Authorization header is kept as-is; otherwise the default TokenProvider
-    /// token is auto-injected if available.
+    /// header is kept as-is; otherwise the header produced by the active
+    /// <see cref="AuthenticationContext.Provider"/> (Bearer token, API key,
+    /// OAuth2, ... depending on configuration) is auto-injected.
     /// </summary>
     public RestRequest Build()
     {
+        var authHeader = AuthenticationContext.Provider.GetAuthenticationHeader();
         if (_suppressAuth)
         {
             _headers.Remove("Authorization");
+            if (authHeader is not null)
+                _headers.Remove(authHeader.Name);
         }
         else if (_identity != null)
         {
             _headers["Authorization"] = $"Bearer {TokenProvider.GetRequiredToken(_identity)}";
         }
-        else if (!_headers.ContainsKey("Authorization") && TokenProvider.HasToken)
+        else if (authHeader is not null && !_headers.ContainsKey(authHeader.Name))
         {
-            // Auto-inject the default Bearer token if available and not already set
-            _headers["Authorization"] = $"Bearer {TokenProvider.Token}";
+            _headers[authHeader.Name] = authHeader.Value;
         }
 
         var resource = _resource;
