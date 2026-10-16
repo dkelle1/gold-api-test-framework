@@ -34,7 +34,7 @@ from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from openapi_common import (  # noqa: E402
-    SERVICES, Endpoint, Service,
+    SERVICES, Endpoint, Service, configure_console,
     example_value, extract_endpoints, load_spec, resolve_schema, resource_of,
 )
 
@@ -206,6 +206,7 @@ def serve(services: list[Service]) -> list[ThreadingHTTPServer]:
 
 
 def main() -> None:
+    configure_console()
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--service", choices=list(SERVICES), action="append",

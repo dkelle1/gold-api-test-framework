@@ -15,11 +15,21 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SWAGGER_DIR = REPO_ROOT / "tests" / "ApiTestFramework.Clients" / "swagger"
+
+
+def configure_console() -> None:
+    """Force UTF-8 stdout/stderr. The tools print box-drawing characters and
+    arrows, which crash with UnicodeEncodeError on legacy Windows code pages
+    (cp1250/cp1252) when the console is not already UTF-8."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -333,6 +343,61 @@ def foreign_key_resource(field_name: str) -> str | None:
     if not m or m.group(1).lower() in ("", "id"):
         return None
     return m.group(1).lower() + "s"
+
+
+def find_foreign_keys(value: object, path: tuple = ()) -> list[tuple[tuple, str, str]]:
+    """Locate foreign-key fields at any depth of an example payload — nested
+    objects and arrays included (e.g. order.items[0].productId).
+
+    Returns [(path, field_name, pool)] where path addresses the field
+    (dict keys / list indices) and pool is the resource that satisfies it."""
+    found: list[tuple[tuple, str, str]] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            pool = foreign_key_resource(key)
+            if pool and not isinstance(child, (dict, list)):
+                found.append((path + (key,), key, pool))
+            else:
+                found.extend(find_foreign_keys(child, path + (key,)))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            found.extend(find_foreign_keys(child, path + (index,)))
+    return found
+
+
+def set_at_path(value: object, path: tuple, new_value: object) -> None:
+    """Assign new_value at a path produced by find_foreign_keys()."""
+    for part in path[:-1]:
+        value = value[part]  # type: ignore[index]
+    value[path[-1]] = new_value  # type: ignore[index]
+
+
+def find_payload_field(param_name: str, payload: object) -> tuple | None:
+    """Find the payload field corresponding to a path param, searching nested
+    objects too: exact (case-insensitive) name match first, then substring
+    ('email' → 'customerEmail'). Returns the key path, or None."""
+    name = param_name.lower()
+
+    def walk(node: object, path: tuple, exact: bool) -> tuple | None:
+        if not isinstance(node, dict):
+            return None
+        for key, child in node.items():
+            if not isinstance(child, (dict, list)) and (
+                    key.lower() == name if exact else name in key.lower()):
+                return path + (key,)
+        for key, child in node.items():
+            hit = walk(child, path + (key,), exact)
+            if hit:
+                return hit
+        return None
+
+    return walk(payload, (), True) or walk(payload, (), False)
+
+
+def get_at_path(value: object, path: tuple) -> object:
+    for part in path:
+        value = value[part]  # type: ignore[index]
+    return value
 
 
 CRUD_ORDER = {"POST": 0, "GET": 1, "PUT": 2, "PATCH": 3, "DELETE": 4}

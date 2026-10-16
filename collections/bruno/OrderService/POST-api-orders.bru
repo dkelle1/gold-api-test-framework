@@ -12,9 +12,31 @@ post {
 
 body:json {
   {
-    "productId": 1,
-    "customerName": "Sample Name",
-    "customerEmail": "qa.tester@example.com",
-    "quantity": 1
+    "customer": {
+      "name": "Sample Name",
+      "email": "qa.tester@example.com",
+      "address": {
+        "street": "sample-string",
+        "city": "sample-string",
+        "postalCode": "sample-string",
+        "country": "sample-string"
+      }
+    },
+    "items": [
+      {
+        "productId": 1,
+        "quantity": 1
+      }
+    ],
+    "shipping": {
+      "method": "Standard",
+      "address": {
+        "street": "sample-string",
+        "city": "sample-string",
+        "postalCode": "sample-string",
+        "country": "sample-string"
+      },
+      "notes": "sample-string"
+    }
   }
 }

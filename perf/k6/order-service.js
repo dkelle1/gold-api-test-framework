@@ -69,10 +69,32 @@ export default function (data) {
   group("orders CRUD", () => {
     const createPayload = 
     {
-      "productId": data.productId,
-      "customerName": "Sample Name",
-      "customerEmail": "qa.tester@example.com",
-      "quantity": 1
+      "customer": {
+        "name": "Sample Name",
+        "email": "qa.tester@example.com",
+        "address": {
+          "street": "sample-string",
+          "city": "sample-string",
+          "postalCode": "sample-string",
+          "country": "sample-string"
+        }
+      },
+      "items": [
+        {
+          "productId": data.productId,
+          "quantity": 1
+        }
+      ],
+      "shipping": {
+        "method": "Standard",
+        "address": {
+          "street": "sample-string",
+          "city": "sample-string",
+          "postalCode": "sample-string",
+          "country": "sample-string"
+        },
+        "notes": "sample-string"
+      }
     };
     let res = http.post(`${ORDER_BASE_URL}/api/orders`, JSON.stringify(createPayload), params);
     check(res, { "POST /api/orders \u2192 201": (r) => r.status === 201 }) || errorRate.add(1);
@@ -81,9 +103,9 @@ export default function (data) {
     check(res, { "GET /api/orders \u2192 200": (r) => r.status === 200 }) || errorRate.add(1);
     res = http.get(`${ORDER_BASE_URL}/api/orders/${orderId}`, params);
     check(res, { "GET /api/orders/{id} \u2192 200": (r) => r.status === 200 }) || errorRate.add(1);
-    res = http.get(`${ORDER_BASE_URL}/api/orders/customer/${createPayload.customerEmail}`, params);
+    res = http.get(`${ORDER_BASE_URL}/api/orders/customer/${createPayload.customer.email}`, params);
     check(res, { "GET /api/orders/customer/{email} \u2192 200": (r) => r.status === 200 }) || errorRate.add(1);
-    res = http.put(`${ORDER_BASE_URL}/api/orders/${orderId}`, JSON.stringify({"quantity": 1, "status": "Pending", "customerName": "Sample Name", "customerEmail": "qa.tester@example.com"}), params);
+    res = http.put(`${ORDER_BASE_URL}/api/orders/${orderId}`, JSON.stringify({"status": "Pending", "customer": {"name": "Sample Name", "email": "qa.tester@example.com", "address": {"street": "sample-string", "city": "sample-string", "postalCode": "sample-string", "country": "sample-string"}}, "shipping": {"method": "Standard", "address": {"street": "sample-string", "city": "sample-string", "postalCode": "sample-string", "country": "sample-string"}, "notes": "sample-string"}}), params);
     check(res, { "PUT /api/orders/{id} \u2192 200": (r) => r.status === 200 }) || errorRate.add(1);
     res = http.del(`${ORDER_BASE_URL}/api/orders/${orderId}`, null, params);
     check(res, { "DELETE /api/orders/{id} \u2192 204": (r) => r.status === 204 }) || errorRate.add(1);

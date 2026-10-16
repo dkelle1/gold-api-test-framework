@@ -16,9 +16,26 @@ params:path {
 
 body:json {
   {
-    "quantity": 1,
     "status": "Pending",
-    "customerName": "Sample Name",
-    "customerEmail": "qa.tester@example.com"
+    "customer": {
+      "name": "Sample Name",
+      "email": "qa.tester@example.com",
+      "address": {
+        "street": "sample-string",
+        "city": "sample-string",
+        "postalCode": "sample-string",
+        "country": "sample-string"
+      }
+    },
+    "shipping": {
+      "method": "Standard",
+      "address": {
+        "street": "sample-string",
+        "city": "sample-string",
+        "postalCode": "sample-string",
+        "country": "sample-string"
+      },
+      "notes": "sample-string"
+    }
   }
 }

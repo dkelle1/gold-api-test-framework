@@ -8,7 +8,8 @@ in natural CRUD order, with real chained data:
   1. registers a user via the auth service and captures the JWT
   2. POSTs example payloads generated from the request schemas
   3. captures created ids and reuses them for GET/{id}, PUT/{id}, DELETE/{id}
-  4. resolves cross-service foreign keys (order.productId ← created product)
+  4. resolves cross-service foreign keys at any nesting depth
+     (order.items[].productId ← created product)
   5. asserts the response status matches the spec's success code
   6. validates the response body against the spec's response schema
      (field types, unexpected nulls on non-nullable fields)
@@ -39,9 +40,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from openapi_common import (  # noqa: E402
-    SERVICES, Endpoint, Service,
+    SERVICES, Endpoint, Service, configure_console,
     crud_sort_key, discover_auth_flow, example_body, example_param_value,
-    foreign_key_resource, load_all, resolve_schema, resource_of,
+    find_foreign_keys, find_payload_field, get_at_path, load_all,
+    resolve_schema, resource_of, set_at_path,
 )
 
 TIMEOUT_SECONDS = 15
@@ -181,13 +183,9 @@ def resolve_path(endpoint: Endpoint, spec: dict, state: RunState) -> str:
         if name.lower() == "id" and resource in state.id_pool:
             value = state.id_pool[resource]
         else:
-            value = next(
-                (payload[k] for k in payload if k.lower() == name.lower()), None)
-            if value is None:
-                value = next(
-                    (payload[k] for k in payload if name.lower() in k.lower()), None)
-            if value is None:
-                value = example_param_value(spec, param)
+            field = find_payload_field(name, payload)
+            value = (get_at_path(payload, field) if field is not None
+                     else example_param_value(spec, param))
         path = path.replace(placeholder, str(value))
     return path
 
@@ -196,10 +194,9 @@ def prepare_body(endpoint: Endpoint, spec: dict, state: RunState) -> dict | None
     body = example_body(spec, endpoint)
     if body is None:
         return None
-    for field_name in list(body):
-        pool = foreign_key_resource(field_name)
-        if pool and pool in state.id_pool:
-            body[field_name] = state.id_pool[pool]
+    for path, _, pool in find_foreign_keys(body):
+        if pool in state.id_pool:
+            set_at_path(body, path, state.id_pool[pool])
     return body
 
 
@@ -324,6 +321,7 @@ def _execute(service: Service, spec: dict, endpoint: Endpoint,
 
 
 def main() -> int:
+    configure_console()
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--service", choices=list(SERVICES),

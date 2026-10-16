@@ -351,7 +351,7 @@
             "description": "`POST /api/orders` \u2014 operationId: CreateOrder",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"productId\": 1,\n  \"customerName\": \"Sample Name\",\n  \"customerEmail\": \"qa.tester@example.com\",\n  \"quantity\": 1\n}",
+              "raw": "{\n  \"customer\": {\n    \"name\": \"Sample Name\",\n    \"email\": \"qa.tester@example.com\",\n    \"address\": {\n      \"street\": \"sample-string\",\n      \"city\": \"sample-string\",\n      \"postalCode\": \"sample-string\",\n      \"country\": \"sample-string\"\n    }\n  },\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"quantity\": 1\n    }\n  ],\n  \"shipping\": {\n    \"method\": \"Standard\",\n    \"address\": {\n      \"street\": \"sample-string\",\n      \"city\": \"sample-string\",\n      \"postalCode\": \"sample-string\",\n      \"country\": \"sample-string\"\n    },\n    \"notes\": \"sample-string\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -417,7 +417,7 @@
             "description": "`PUT /api/orders/{id}` \u2014 operationId: UpdateOrder",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"quantity\": 1,\n  \"status\": \"Pending\",\n  \"customerName\": \"Sample Name\",\n  \"customerEmail\": \"qa.tester@example.com\"\n}",
+              "raw": "{\n  \"status\": \"Pending\",\n  \"customer\": {\n    \"name\": \"Sample Name\",\n    \"email\": \"qa.tester@example.com\",\n    \"address\": {\n      \"street\": \"sample-string\",\n      \"city\": \"sample-string\",\n      \"postalCode\": \"sample-string\",\n      \"country\": \"sample-string\"\n    }\n  },\n  \"shipping\": {\n    \"method\": \"Standard\",\n    \"address\": {\n      \"street\": \"sample-string\",\n      \"city\": \"sample-string\",\n      \"postalCode\": \"sample-string\",\n      \"country\": \"sample-string\"\n    },\n    \"notes\": \"sample-string\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"

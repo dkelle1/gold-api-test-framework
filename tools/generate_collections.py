@@ -31,7 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from openapi_common import (  # noqa: E402
-    REPO_ROOT, SERVICES, AuthFlow, Endpoint, Service,
+    REPO_ROOT, SERVICES, AuthFlow, Endpoint, Service, configure_console,
     discover_auth_flow, example_body, example_param_value, load_all,
 )
 
@@ -287,6 +287,7 @@ def generate_bruno() -> None:
 
 
 def main() -> None:
+    configure_console()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--postman", action="store_true", help="generate Postman only")
     parser.add_argument("--bruno", action="store_true", help="generate Bruno only")

@@ -38,7 +38,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from openapi_common import (  # noqa: E402
-    REPO_ROOT, SERVICES, discover_auth_flow, example_body, extract_endpoints,
+    REPO_ROOT, SERVICES, configure_console, discover_auth_flow, example_body, extract_endpoints,
     load_spec,
 )
 
@@ -92,6 +92,7 @@ def acquire_token() -> str:
 
 
 def main() -> int:
+    configure_console()
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--service", choices=list(SERVICES),

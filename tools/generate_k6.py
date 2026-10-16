@@ -24,7 +24,8 @@ Profiles (selectable via -e PROFILE=...):
 Each script:
   - registers a unique user in setup() and reuses the JWT for all VUs
   - chains CRUD flows (create → read → update → delete) with per-endpoint checks
-  - resolves cross-service foreign keys (e.g. order.productId → creates a product)
+  - resolves cross-service foreign keys at any nesting depth
+    (e.g. order.items[].productId → creates a product)
   - enforces thresholds: p95 latency and error-rate budgets
 """
 
@@ -36,9 +37,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from openapi_common import (  # noqa: E402
-    REPO_ROOT, SERVICES, Endpoint, Service,
+    REPO_ROOT, SERVICES, Endpoint, Service, configure_console,
     crud_sort_key, discover_auth_flow, example_body, example_param_value,
-    foreign_key_resource, load_all, resource_of, singular,
+    find_foreign_keys, find_payload_field, get_at_path, load_all, resource_of,
+    singular,
 )
 
 K6_DIR = REPO_ROOT / "perf" / "k6"
@@ -120,29 +122,19 @@ def k6_path_expr(endpoint: Endpoint, spec: dict, id_var: str | None,
     for param in endpoint.path_params:
         name = param["name"]
         placeholder = "{" + name + "}"
-        field = _payload_field_for(name, create_payload)
+        field = find_payload_field(name, create_payload) if create_payload else None
         if name.lower() == "id" and id_var:
             path = path.replace(placeholder, f"${{{id_var}}}")
         elif payload_var and field is not None:
-            path = path.replace(placeholder, f"${{{payload_var}.{field}}}")
+            path = path.replace(placeholder, f"${{{payload_var}{_js_accessor(field)}}}")
         else:
             path = path.replace(placeholder, str(example_param_value(spec, param)))
     return path
 
 
-def _payload_field_for(param_name: str, payload: dict | None) -> str | None:
-    """Find the create-payload field that corresponds to a path param
-    ('category' → 'category', 'email' → 'customerEmail')."""
-    if not payload:
-        return None
-    name = param_name.lower()
-    for key in payload:
-        if key.lower() == name:
-            return key
-    for key in payload:
-        if name in key.lower():
-            return key
-    return None
+def _js_accessor(path: tuple) -> str:
+    """('customer', 'email') → '.customer.email'; list indices → '[0]'."""
+    return "".join(f"[{p}]" if isinstance(p, int) else f".{p}" for p in path)
 
 
 def crud_flow_js(service: Service, spec: dict, endpoints: list[Endpoint],
@@ -165,12 +157,13 @@ def crud_flow_js(service: Service, spec: dict, endpoints: list[Endpoint],
             payload = example_body(spec, create_ep) or {}
             payload_var = "createPayload"
             payload_js = json.dumps(payload, indent=2)
-            # splice seeded foreign keys (e.g. productId from setup data)
-            for fk_field, js_expr in fk_seeds.items():
-                if fk_field in payload:
+            # splice seeded foreign keys at any depth
+            # (e.g. items[].productId from setup data)
+            for fk_path, fk_field, _ in find_foreign_keys(payload):
+                if fk_field in fk_seeds:
                     payload_js = payload_js.replace(
-                        f'"{fk_field}": {json.dumps(payload[fk_field])}',
-                        f'"{fk_field}": {js_expr}')
+                        f'"{fk_field}": {json.dumps(get_at_path(payload, fk_path))}',
+                        f'"{fk_field}": {fk_seeds[fk_field]}')
             indented = "\n".join("    " + l for l in payload_js.splitlines())
             lines.append(f"    const {payload_var} = \n{indented};")
 
@@ -220,10 +213,8 @@ def fk_seed_setup(service: Service, spec: dict, endpoints: list[Endpoint],
         if ep.method != "POST":
             continue
         body = example_body(spec, ep) or {}
-        for field_name in body:
-            pool = foreign_key_resource(field_name)
-            if pool:
-                needed[field_name] = pool
+        for _, field_name, pool in find_foreign_keys(body):
+            needed[field_name] = pool
 
     setup_lines: list[str] = []
     seeds: dict[str, str] = {}
@@ -366,6 +357,7 @@ export default function (data) {{
 
 
 def main() -> None:
+    configure_console()
     all_specs = load_all()
     auth_entry = next(((s, sp, eps) for s, sp, eps in all_specs if s.is_auth_issuer), None)
     if auth_entry is None:
