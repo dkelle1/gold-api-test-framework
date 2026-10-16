@@ -1,0 +1,163 @@
+name: Tests
+
+# Runs the whole test suite against the full docker-compose stack
+# (SQL Server, Redis, AuthService, ProductService, OrderService).
+#
+#   - pull requests / pushes to develop: automatically
+#   - manually: Actions → Tests → "Run workflow" (optional NUnit filter)
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      filter:
+        description: 'NUnit filter for the integration run, e.g. "FullyQualifiedName~OrderService" (empty = all tests)'
+        required: false
+        default: ''
+      smoke:
+        description: 'Also run the Python smoke/contract runner against the live stack'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  SOLUTION: ApiTestFramework.sln
+  TEST_PROJECT: tests/ApiTestFramework.Tests/ApiTestFramework.Tests.csproj
+
+jobs:
+  # ── Fast feedback: no Docker, no services ──────────────────────────────────
+  unit:
+    name: Build & unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build
+        run: |
+          dotnet restore "$SOLUTION"
+          dotnet build "$SOLUTION" -c Release --no-restore
+
+      - name: Unit tests (Category=Unit)
+        run: >
+          dotnet test "$TEST_PROJECT" -c Release --no-build
+          --filter "Category=Unit"
+          --logger "trx;LogFileName=unit.trx"
+          --results-directory test-results
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Python tooling against the in-memory mock
+        run: |
+          python tools/mock_server.py > mock-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null http://localhost:5100/api/products && break
+            sleep 1
+          done
+          python tools/smoke_runner.py --json test-results/smoke-mock.json
+
+      - name: Test summary
+        if: always()
+        run: python scripts/ci/trx-summary.py "Unit tests" test-results/*.trx >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: |
+            test-results/
+            mock-server.log
+          if-no-files-found: ignore
+
+  # ── Full suite against the real stack ──────────────────────────────────────
+  integration:
+    name: All tests (docker compose stack)
+    runs-on: ubuntu-latest
+    needs: unit
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build
+        run: |
+          dotnet restore "$SOLUTION"
+          dotnet build "$SOLUTION" -c Release --no-restore
+
+      - name: Start services
+        run: docker compose up -d --build --wait --wait-timeout 600
+
+      - name: Run all tests
+        env:
+          FILTER: ${{ github.event.inputs.filter }}
+        run: |
+          args=()
+          if [ -n "$FILTER" ]; then args+=(--filter "$FILTER"); fi
+          dotnet test "$TEST_PROJECT" -c Release --no-build "${args[@]}" \
+            --logger "trx;LogFileName=all.trx" \
+            --results-directory test-results
+
+      - uses: actions/setup-python@v5
+        if: always() && github.event.inputs.smoke != 'false'
+        with:
+          python-version: '3.12'
+
+      - name: Python smoke & contract checks (live stack)
+        if: always() && github.event.inputs.smoke != 'false'
+        run: python tools/smoke_runner.py --role Admin --json test-results/smoke-live.json
+
+      - name: Test summary
+        if: always()
+        run: python scripts/ci/trx-summary.py "All tests" test-results/*.trx >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect Allure results & service logs
+        if: always()
+        run: |
+          mkdir -p allure-results
+          # Allure.NUnit 2.12.x writes next to the test assembly, not to the workspace root
+          find tests -path "*/bin/*/allure-results" -type d -exec cp -r {}/. allure-results/ \;
+          docker compose logs --no-color > service-logs.txt 2>&1 || true
+
+      - name: Generate Allure report
+        if: always()
+        run: |
+          if [ -n "$(ls -A allure-results 2>/dev/null)" ]; then
+            npx --yes allure-commandline@2.29.0 generate allure-results -o allure-report --clean
+          fi
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: |
+            test-results/
+            allure-results/
+            allure-report/
+            service-logs.txt
+          if-no-files-found: ignore
+
+      - name: Stop services
+        if: always()
+        run: docker compose down -v

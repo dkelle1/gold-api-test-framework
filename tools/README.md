@@ -88,6 +88,7 @@ python3 tools/smoke_runner.py                  # everything, exit 1 on failure
 python3 tools/smoke_runner.py --service product
 python3 tools/smoke_runner.py --list           # print the plan, no requests
 python3 tools/smoke_runner.py --json report.json
+python3 tools/smoke_runner.py --role Admin     # smoke user with a role (admin-only endpoints, e.g. DELETE /api/products/{id})
 ```
 
 Per run it:
