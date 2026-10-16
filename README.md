@@ -15,8 +15,8 @@ Complete solution with four .NET 8 microservices and a generic API test framewor
 - **ApiTestFramework.Clients** — NSwag-generated DTOs and placeholder DTOs
 - **ApiTestFramework.Steps** — Step classes per service (Bogus data generators, Allure step annotations), `UserScope` for per-test user isolation
 - **ApiTestFramework.Tests** — NUnit test fixtures (31 tests across 5 fixtures)
-- **ApiTestFramework.OpenApi** — OpenAPI spec loader, test-case scaffolder, and `StepsGenerator` for code generation
-- **ApiTestFramework.OpenApi.Cli** — CLI wrapper (`generate-steps.exe`) that drives `StepsGenerator` from the command line
+- **ApiTestFramework.OpenApi** — OpenAPI spec loader, verb-specific test-case scaffolder, and `StepsGenerator` for code generation
+- **ApiTestFramework.OpenApi.Cli** — CLI wrapper (`generate-steps.exe`) that drives step, DTO, and test-stub generation from the command line
 
 ## Tech Stack
 | Component | Technology |
@@ -128,8 +128,47 @@ allure serve TestResults/allure-results
 │   └── ApiTestFramework.OpenApi.Cli/ # CLI (generate-steps.exe) to generate *ServiceSteps.cs from swagger
 ├── docker-compose.yml           # Full stack: microservices + SQL Server + Redis + Consul
 ├── generate-steps.bat           # Convenience script — regenerates all service step files from swagger
+├── generate-tests.bat           # Convenience script — generates verb-specific NUnit scaffold tests from swagger
 ├── Jenkinsfile                  # CI/CD pipeline
 └── ApiTestFramework.sln
+```
+
+## OpenAPI Code Generation
+
+### Generate Steps
+```bash
+generate-steps.bat
+```
+
+### Generate DTOs
+```bash
+dotnet run --project tests/ApiTestFramework.OpenApi.Cli -- --mode dto --swagger tests/ApiTestFramework.Clients/swagger/product-swagger.json --ns ApiTestFramework.Clients.ProductService --out ProductDtos.g.cs
+```
+
+### Generate Verb-Specific Test Scaffolds
+The test scaffolder creates NUnit stubs directly from documented OpenAPI responses and then refines them with HTTP-verb-specific functional hints.
+
+Generation rules:
+- every documented status code in swagger becomes its own scaffolded test case
+- the generator derives scenario intent from both HTTP verb and response code, for example `401` as security, `404` as missing resource, `409` as conflicting state, `503` as resilience or availability
+- response schemas from swagger are echoed in the assertion hint so generated tests prompt contract checks, not only status-code checks
+- request bodies are detected for both referenced schemas and inline or multipart definitions, so file-upload endpoints also get negative validation scaffolds
+
+Functional test design guidance baked into the scaffold:
+- success paths use representative valid data and expected business preconditions
+- negative paths target invalid input, missing resources, conflicting state, and unsupported content types when those responses are documented
+- security paths cover missing auth and permission failures when documented
+- resilience paths cover rate limiting and service unavailability when documented
+
+This aligns the scaffold with contract-based API functional testing and common ISTQB-style test design principles: equivalence classes, negative testing, authorization checks, and documented error handling.
+
+```bash
+generate-tests.bat
+```
+
+Single-service example:
+```bash
+dotnet run --project tests/ApiTestFramework.OpenApi.Cli -- --mode tests --swagger tests/ApiTestFramework.Clients/swagger/import-swagger.json --service Import --ns ApiTestFramework.Tests.Generated --out artifacts/generated-tests/ImportGeneratedTests.g.cs
 ```
 
 ## Configuration
