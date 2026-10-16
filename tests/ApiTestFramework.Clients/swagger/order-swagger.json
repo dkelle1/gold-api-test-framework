@@ -173,27 +173,56 @@
         "type": "object",
         "properties": {
           "id": { "type": "integer", "format": "int32" },
-          "product": { "$ref": "#/components/schemas/ProductRef" },
           "customer": { "$ref": "#/components/schemas/CustomerInfo" },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/OrderItemInfo" }
+          },
+          "shipping": { "$ref": "#/components/schemas/ShippingInfo" },
           "totalPrice": { "type": "number", "format": "decimal" },
           "status": { "$ref": "#/components/schemas/OrderStatus" },
           "audit": { "$ref": "#/components/schemas/AuditInfo" }
-        }
-      },
-      "ProductRef": {
-        "type": "object",
-        "properties": {
-          "productId": { "type": "integer", "format": "int32" },
-          "productName": { "type": "string" },
-          "unitPrice": { "type": "number", "format": "decimal" },
-          "quantity": { "type": "integer", "format": "int32" }
         }
       },
       "CustomerInfo": {
         "type": "object",
         "properties": {
           "name": { "type": "string" },
-          "email": { "type": "string" }
+          "email": { "type": "string" },
+          "address": {
+            "nullable": true,
+            "oneOf": [ { "$ref": "#/components/schemas/AddressInfo" } ]
+          }
+        }
+      },
+      "AddressInfo": {
+        "type": "object",
+        "properties": {
+          "street": { "type": "string" },
+          "city": { "type": "string" },
+          "postalCode": { "type": "string" },
+          "country": { "type": "string" }
+        }
+      },
+      "OrderItemInfo": {
+        "type": "object",
+        "properties": {
+          "productId": { "type": "integer", "format": "int32" },
+          "productName": { "type": "string" },
+          "unitPrice": { "type": "number", "format": "decimal" },
+          "quantity": { "type": "integer", "format": "int32" },
+          "lineTotal": { "type": "number", "format": "decimal" }
+        }
+      },
+      "ShippingInfo": {
+        "type": "object",
+        "properties": {
+          "method": { "$ref": "#/components/schemas/ShippingMethod" },
+          "address": {
+            "nullable": true,
+            "oneOf": [ { "$ref": "#/components/schemas/AddressInfo" } ]
+          },
+          "notes": { "type": "string", "nullable": true }
         }
       },
       "AuditInfo": {
@@ -207,25 +236,80 @@
         "enum": [ "Pending", "Confirmed", "Shipped", "Delivered", "Cancelled" ],
         "type": "string"
       },
+      "ShippingMethod": {
+        "enum": [ "Standard", "Express", "Pickup" ],
+        "type": "string"
+      },
       "CreateOrderRequest": {
         "type": "object",
+        "required": [ "customer", "items" ],
+        "properties": {
+          "customer": { "$ref": "#/components/schemas/CustomerRequest" },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/OrderItemRequest" }
+          },
+          "shipping": {
+            "nullable": true,
+            "oneOf": [ { "$ref": "#/components/schemas/ShippingRequest" } ]
+          }
+        }
+      },
+      "CustomerRequest": {
+        "type": "object",
+        "required": [ "name", "email" ],
+        "properties": {
+          "name": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "address": {
+            "nullable": true,
+            "oneOf": [ { "$ref": "#/components/schemas/AddressRequest" } ]
+          }
+        }
+      },
+      "AddressRequest": {
+        "type": "object",
+        "properties": {
+          "street": { "type": "string" },
+          "city": { "type": "string" },
+          "postalCode": { "type": "string" },
+          "country": { "type": "string" }
+        }
+      },
+      "OrderItemRequest": {
+        "type": "object",
+        "required": [ "productId", "quantity" ],
         "properties": {
           "productId": { "type": "integer", "format": "int32" },
-          "customerName": { "type": "string" },
-          "customerEmail": { "type": "string" },
           "quantity": { "type": "integer", "format": "int32" }
+        }
+      },
+      "ShippingRequest": {
+        "type": "object",
+        "properties": {
+          "method": { "$ref": "#/components/schemas/ShippingMethod" },
+          "address": {
+            "nullable": true,
+            "oneOf": [ { "$ref": "#/components/schemas/AddressRequest" } ]
+          },
+          "notes": { "type": "string", "nullable": true }
         }
       },
       "UpdateOrderRequest": {
         "type": "object",
         "properties": {
-          "quantity": { "type": "integer", "format": "int32", "nullable": true },
           "status": {
             "nullable": true,
             "oneOf": [ { "$ref": "#/components/schemas/OrderStatus" } ]
           },
-          "customerName": { "type": "string", "nullable": true },
-          "customerEmail": { "type": "string", "nullable": true }
+          "customer": {
+            "nullable": true,
+            "oneOf": [ { "$ref": "#/components/schemas/CustomerRequest" } ]
+          },
+          "shipping": {
+            "nullable": true,
+            "oneOf": [ { "$ref": "#/components/schemas/ShippingRequest" } ]
+          }
         }
       }
     }
