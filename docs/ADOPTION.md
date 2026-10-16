@@ -202,7 +202,11 @@ RequestBuilder.Create().WithMethod(Method.Get).WithPath("/api/products")
 
 The pluggable layer is covered by unit tests in
 `tests/ApiTestFramework.Tests/Framework/AuthenticationProviderTests.cs` — they
-also serve as executable documentation.
+also serve as executable documentation and run without live services:
+
+```bash
+dotnet test tests/ApiTestFramework.Tests --filter Category=Unit
+```
 
 ## 3. DTOs and HTTP clients (NSwag)
 

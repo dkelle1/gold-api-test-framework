@@ -6,11 +6,15 @@ using FluentAssertions;
 using NUnit.Framework;
 using RestSharp;
 
-namespace ApiTestFramework.Tests.Framework;
+// Deliberately outside the ApiTestFramework.Tests namespace: the GlobalSetup
+// SetUpFixture there registers a user against a live AuthService, which would
+// make these offline unit tests fail when the services are not running.
+namespace ApiTestFramework.FrameworkTests;
 
 /// <summary>
 /// Unit tests for the pluggable authentication layer — no live services needed.
 /// Documents how adopters with non-JWT authorization plug into the framework.
+/// Run in isolation with: dotnet test tests/ApiTestFramework.Tests --filter Category=Unit
 /// </summary>
 [TestFixture]
 [AllureSuite("Framework")]
