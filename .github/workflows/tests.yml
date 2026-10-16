@@ -108,6 +108,13 @@ jobs:
       - name: Start services
         run: docker compose up -d --build --wait --wait-timeout 600
 
+      - name: Capture live swagger
+        run: |
+          mkdir -p live-swagger
+          curl -sf http://localhost:5300/swagger/v1/swagger.json -o live-swagger/auth-swagger.json
+          curl -sf http://localhost:5100/swagger/v1/swagger.json -o live-swagger/product-swagger.json
+          curl -sf http://localhost:5200/swagger/v1/swagger.json -o live-swagger/order-swagger.json
+
       - name: Run all tests
         env:
           FILTER: ${{ github.event.inputs.filter }}
@@ -155,6 +162,7 @@ jobs:
             test-results/
             allure-results/
             allure-report/
+            live-swagger/
             service-logs.txt
           if-no-files-found: ignore
 
