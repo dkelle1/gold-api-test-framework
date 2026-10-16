@@ -129,15 +129,18 @@ public class RequestBuilder
 
     /// <summary>
     /// Builds the RestRequest from the configured parameters.
-    /// Automatically injects the Bearer token from TokenProvider if available
-    /// and no Authorization header has been set explicitly.
+    /// Automatically injects the authentication header from the active
+    /// <see cref="AuthenticationContext.Provider"/> (Bearer token, API key,
+    /// OAuth2, ... depending on configuration) unless the same header has
+    /// been set explicitly — so 401-scenario tests can opt out via
+    /// <c>WithHeader("Authorization", "")</c>.
     /// </summary>
     public RestRequest Build()
     {
-        // Auto-inject Bearer token if available and not already set
-        if (!_headers.ContainsKey("Authorization") && TokenProvider.HasToken)
+        var authHeader = AuthenticationContext.Provider.GetAuthenticationHeader();
+        if (authHeader is not null && !_headers.ContainsKey(authHeader.Name))
         {
-            _headers["Authorization"] = $"Bearer {TokenProvider.Token}";
+            _headers[authHeader.Name] = authHeader.Value;
         }
 
         var resource = _resource;
