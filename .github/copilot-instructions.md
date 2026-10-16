@@ -32,11 +32,13 @@ InventoryInfo   { StockQuantity, InStock }
 AuditInfo       { CreatedAt, UpdatedAt? }
 ```
 
-**OrderService** returns `OrderResponse`:
+**OrderService** returns `OrderResponse` (multi-item aggregate):
 ```csharp
-OrderResponse { Id, Product (ProductRef), Customer (CustomerInfo), TotalPrice, Status, Audit (AuditInfo) }
-ProductRef    { ProductId, ProductName, UnitPrice, Quantity }
-CustomerInfo  { Name, Email }
+OrderResponse { Id, Customer (CustomerInfo), Items (List<OrderItemInfo>), Shipping (ShippingInfo), TotalPrice, Status, Audit (AuditInfo) }
+CustomerInfo  { Name, Email, Address (AddressInfo?) }
+OrderItemInfo { ProductId, ProductName, UnitPrice, Quantity, LineTotal }
+ShippingInfo  { Method, Address (AddressInfo?), Notes? }
+AddressInfo   { Street, City, PostalCode, Country }
 ```
 
 **AuthService** returns `AuthResponse`:
@@ -46,7 +48,18 @@ TokenInfo    { AccessToken, TokenType, ExpiresAt, ExpiresInSeconds }
 UserProfile  { Username, Email, Role }
 ```
 
-Request DTOs (body) remain **flat**: `CreateProductRequest`, `CreateOrderRequest`, `RegisterRequest`, etc.
+Auth/Product request DTOs (body) remain **flat** (`CreateProductRequest`, `RegisterRequest`).
+OrderService requests are **nested** — one request carries several DTO levels:
+```csharp
+CreateOrderRequest { Customer (CustomerRequest), Items (List<OrderItemRequest>), Shipping (ShippingRequest?) }
+CustomerRequest    { Name, Email, Address (AddressRequest?) }
+OrderItemRequest   { ProductId, Quantity }
+ShippingRequest    { Method, Address (AddressRequest?), Notes? }   // Address falls back to customer address
+UpdateOrderRequest { Status?, Customer?, Shipping? }
+```
+Test data for requests is created via **generated fluent builders** in
+`ApiTestFramework.Steps/Builders/<Service>/Generated/*.g.cs` (regenerate: `scripts/regenerate-all.ps1`);
+hand-written customizations live in `Builders/Custom/*.cs` partial classes.
 
 ---
 
@@ -57,9 +70,10 @@ Request DTOs (body) remain **flat**: `CreateProductRequest`, `CreateOrderRequest
 ```
 ApiTestFramework.Core    — infrastructure (ApiClient, RequestBuilder, TokenProvider, DI, Assertions, Config, Logging)
 ApiTestFramework.Clients — NSwag-generated DTOs and HTTP clients (do not edit by hand)
-ApiTestFramework.Steps   — reusable steps (AuthServiceSteps, ProductServiceSteps, OrderServiceSteps) + DataGenerators
-ApiTestFramework.Tests   — NUnit test fixtures (AuthCrudTests, ProductCrudTests, OrderCrudTests)
-ApiTestFramework.OpenApi — OpenAPI spec parsing + test case scaffolding for future auto-generation
+ApiTestFramework.Steps   — reusable steps (AuthServiceSteps, ProductServiceSteps, OrderServiceSteps) + Builders (generated + custom partials) + DataGenerators
+ApiTestFramework.Tests   — NUnit test fixtures (AuthCrudTests, ProductCrudTests, OrderCrudTests) + Generated/ test scaffolds (*.cs.txt)
+ApiTestFramework.OpenApi — OpenAPI spec parsing (SchemaExtractor) + builder/test-case scaffolding (BuilderScaffolder, TestCaseScaffolder)
+ApiTestFramework.Generator.Cli — dotnet run → regenerates builders + test scaffolds from swagger/*.json
 ```
 
 ### Key Classes

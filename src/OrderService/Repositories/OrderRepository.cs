@@ -30,7 +30,7 @@ public class SqlOrderRepository : IOrderRepository
 
     public async Task<IEnumerable<Order>> GetAllAsync()
     {
-        return await _context.Orders.ToListAsync();
+        return await _context.Orders.Include(o => o.Items).ToListAsync();
     }
 
     public async Task<Order?> GetByIdAsync(int id)
@@ -44,7 +44,9 @@ public class SqlOrderRepository : IOrderRepository
         }
         catch { /* Redis unavailable */ }
 
-        var order = await _context.Orders.FindAsync(id);
+        var order = await _context.Orders
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.Id == id);
 
         if (order is not null)
         {
@@ -62,6 +64,7 @@ public class SqlOrderRepository : IOrderRepository
     public async Task<IEnumerable<Order>> GetByCustomerEmailAsync(string email)
     {
         return await _context.Orders
+            .Include(o => o.Items)
             .Where(o => o.CustomerEmail == email)
             .ToListAsync();
     }
@@ -76,17 +79,40 @@ public class SqlOrderRepository : IOrderRepository
 
     public async Task<Order?> UpdateAsync(int id, UpdateOrderRequest request)
     {
-        var order = await _context.Orders.FindAsync(id);
+        var order = await _context.Orders
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.Id == id);
         if (order is null) return null;
 
-        if (request.Quantity.HasValue)
-        {
-            order.Quantity = request.Quantity.Value;
-            order.TotalPrice = order.UnitPrice * request.Quantity.Value;
-        }
         if (request.Status.HasValue) order.Status = request.Status.Value;
-        if (request.CustomerName is not null) order.CustomerName = request.CustomerName;
-        if (request.CustomerEmail is not null) order.CustomerEmail = request.CustomerEmail;
+
+        if (request.Customer is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(request.Customer.Name)) order.CustomerName = request.Customer.Name;
+            if (!string.IsNullOrWhiteSpace(request.Customer.Email)) order.CustomerEmail = request.Customer.Email;
+            if (request.Customer.Address is not null)
+            {
+                order.CustomerStreet = request.Customer.Address.Street;
+                order.CustomerCity = request.Customer.Address.City;
+                order.CustomerPostalCode = request.Customer.Address.PostalCode;
+                order.CustomerCountry = request.Customer.Address.Country;
+            }
+        }
+
+        if (request.Shipping is not null)
+        {
+            order.ShippingMethod = request.Shipping.Method;
+            if (request.Shipping.Address is not null)
+            {
+                order.ShippingStreet = request.Shipping.Address.Street;
+                order.ShippingCity = request.Shipping.Address.City;
+                order.ShippingPostalCode = request.Shipping.Address.PostalCode;
+                order.ShippingCountry = request.Shipping.Address.Country;
+            }
+            if (request.Shipping.Notes is not null)
+                order.ShippingNotes = request.Shipping.Notes;
+        }
+
         order.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();

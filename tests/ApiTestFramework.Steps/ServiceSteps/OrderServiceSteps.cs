@@ -46,13 +46,30 @@ public class OrderServiceSteps
     }
 
     /// <summary>
+    /// Creates a multi-item order: creates <paramref name="productCount"/> products
+    /// and one order with a line per product.
+    /// </summary>
+    [AllureStep("Create order with {productCount} products (full setup)")]
+    public async Task<(Order Order, List<int> ProductIds)> CreateOrderWithProductsAsync(int productCount)
+    {
+        var productIds = new List<int>();
+        for (var i = 0; i < productCount; i++)
+            productIds.Add(await _productSteps.CreateProductAndReturnIdAsync());
+
+        var createRequest = OrderDataGenerator.GenerateMultiItemOrderRequest(productIds.ToArray());
+        var order = await CreateOrderAsync(createRequest);
+
+        return (order, productIds);
+    }
+
+    /// <summary>
     /// Creates an order from a specific request.
     /// </summary>
     [AllureStep("Create an order")]
     public async Task<Order> CreateOrderAsync(CreateOrderRequest createRequest)
     {
-        _logger.Information("Creating order for ProductId: {ProductId}, Customer: {Customer}",
-            createRequest.ProductId, createRequest.CustomerName);
+        _logger.Information("Creating order with {ItemCount} item(s) for Customer: {Customer}",
+            createRequest.Items.Count, createRequest.Customer.Name);
 
         var response = await _client.SendAsync<Order>(
             RequestFactory.Post(OrderServiceRoutes.Base, createRequest));
