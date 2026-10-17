@@ -65,6 +65,7 @@ The same runs on every pull request in GitHub Actions, and on demand via *Action
 | [Adopting the framework](docs/tutorial/10-adopt-for-your-product.md) | set it up for your own services |
 | [Reference](docs/README.md) | core, authentication, generators, Python tooling, CI |
 | [Example system](examples/demo-shop/README.md) | the demo services and their APIs |
+| [AI assistants](docs/ai-assistants.md) | `AGENTS.md`, `CLAUDE.md`, skills and guardrails for Claude, Codex, Copilot, Cursor, Gemini |
 
 ## Testing policy
 
