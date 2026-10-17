@@ -1,6 +1,9 @@
 # Demo-shop example stack: SQL Server, Redis and the three example services.
 # This is the "system under test" for the example API tests — not part of the framework.
 #   docker compose -f examples/demo-shop/docker-compose.yml up -d --build --wait
+# Ports and secrets come from variables with the defaults below; to use the repository-root .env:
+#   docker compose --env-file .env -f examples/demo-shop/docker-compose.yml up -d --build --wait
+# (variables: SQL_PORT, REDIS_PORT, AUTH_PORT, PRODUCT_PORT, ORDER_PORT, SA_PASSWORD, JWT_SECRET_KEY)
 services:
 
   # ── Infrastructure ──────────────────────────────────────────────────────────
@@ -9,15 +12,15 @@ services:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: sqlserver
     environment:
-      SA_PASSWORD: "ApiTest_Sa@2024"
+      SA_PASSWORD: "${SA_PASSWORD:-ApiTest_Sa@2024}"
       ACCEPT_EULA: "Y"
       MSSQL_PID: "Express"
     ports:
-      - "1433:1433"
+      - "${SQL_PORT:-1433}:1433"
     volumes:
       - sqlserver_data:/var/opt/mssql
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'ApiTest_Sa@2024' -Q 'SELECT 1' -C -b -o /dev/null"]
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${SA_PASSWORD:-ApiTest_Sa@2024}' -Q 'SELECT 1' -C -b -o /dev/null"]
       interval: 10s
       retries: 10
       start_period: 30s
@@ -27,7 +30,7 @@ services:
     image: redis:7-alpine
     container_name: redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -44,13 +47,13 @@ services:
       dockerfile: AuthService/Dockerfile
     container_name: auth-service
     ports:
-      - "5300:8080"
+      - "${AUTH_PORT:-5300}:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=AuthServiceDb;User Id=sa;Password=ApiTest_Sa@2024;TrustServerCertificate=True"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=AuthServiceDb;User Id=sa;Password=${SA_PASSWORD:-ApiTest_Sa@2024};TrustServerCertificate=True"
       Redis__ConnectionString: "redis:6379"
-      Jwt__SecretKey: "ApiTestFramework_SuperSecretKey_ForDevelopment_2024_MinLength32!"
+      Jwt__SecretKey: "${JWT_SECRET_KEY:-ApiTestFramework_SuperSecretKey_ForDevelopment_2024_MinLength32!}"
       Jwt__Issuer: "ApiTestFramework.AuthService"
       Jwt__Audience: "ApiTestFramework.Services"
       Jwt__ExpirationMinutes: "60"
@@ -72,13 +75,13 @@ services:
       dockerfile: ProductService/Dockerfile
     container_name: product-service
     ports:
-      - "5100:8080"
+      - "${PRODUCT_PORT:-5100}:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=ProductServiceDb;User Id=sa;Password=ApiTest_Sa@2024;TrustServerCertificate=True"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=ProductServiceDb;User Id=sa;Password=${SA_PASSWORD:-ApiTest_Sa@2024};TrustServerCertificate=True"
       Redis__ConnectionString: "redis:6379"
-      Jwt__SecretKey: "ApiTestFramework_SuperSecretKey_ForDevelopment_2024_MinLength32!"
+      Jwt__SecretKey: "${JWT_SECRET_KEY:-ApiTestFramework_SuperSecretKey_ForDevelopment_2024_MinLength32!}"
       Jwt__Issuer: "ApiTestFramework.AuthService"
       Jwt__Audience: "ApiTestFramework.Services"
     depends_on:
@@ -99,14 +102,14 @@ services:
       dockerfile: OrderService/Dockerfile
     container_name: order-service
     ports:
-      - "5200:8080"
+      - "${ORDER_PORT:-5200}:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=OrderServiceDb;User Id=sa;Password=ApiTest_Sa@2024;TrustServerCertificate=True"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=OrderServiceDb;User Id=sa;Password=${SA_PASSWORD:-ApiTest_Sa@2024};TrustServerCertificate=True"
       Redis__ConnectionString: "redis:6379"
       ProductServiceUrl: "http://product-service:8080"
-      Jwt__SecretKey: "ApiTestFramework_SuperSecretKey_ForDevelopment_2024_MinLength32!"
+      Jwt__SecretKey: "${JWT_SECRET_KEY:-ApiTestFramework_SuperSecretKey_ForDevelopment_2024_MinLength32!}"
       Jwt__Issuer: "ApiTestFramework.AuthService"
       Jwt__Audience: "ApiTestFramework.Services"
     depends_on:

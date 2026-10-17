@@ -53,6 +53,12 @@ export OPENAPI_TOOLS_CONFIG=my-product/api-tests/openapi-tools.json
 python3 tools/smoke_runner.py
 ```
 
+**`.env`:** the tools load the same `.env` as the .NET tests (`TEST_ENV_FILE`, else the nearest `.env`
+from the current directory upwards, else the repository root) without overriding real environment
+variables. A service's base URL is taken from its tool variable (`AUTH_BASE_URL`, …), else from the
+.NET setting `TEST_Services__<Name>__BaseUrl`, else from the config — so one `.env` line points both
+the C# suite and the tools at an environment.
+
 The token flow is discovered from the auth issuer's spec (a `register` or `login` operation whose
 response contains a token). Products with a different auth scheme can still use the generators
 and the mock; for k6 replace `obtainToken()` with `__ENV.TOKEN` in the generated script.

@@ -50,7 +50,7 @@ enforced in `.claude/settings.json`:
 - **Generated files** (`*.g.cs`, `Generated/*.cs.txt`, `examples/*/collections/**`,
   `examples/*/perf/k6/**`): `deny` rules plus a `PreToolUse` hook that explains how to regenerate.
   Generators run through Bash and are unaffected.
-- **Secrets:** reading `.env` files is denied.
+- **Secrets:** reading `.env` and `.env.local` is denied (the template `.env.example` is readable).
 - **History:** force-pushes and direct pushes to `develop`/`main` are denied.
 - **Pre-approved:** build, test, generator, Python tool, compose and read-only git/gh commands, so
   routine work does not stop for prompts. Anything else asks.

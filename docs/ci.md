@@ -55,6 +55,13 @@ export TEST_Services__ProductService__BaseUrl=http://product-service:8080
 export TEST_Services__OrderService__BaseUrl=http://order-service:8080
 ```
 
+## Configuration in CI
+
+CI needs no `.env`: the defaults in `appsettings.test.json` match the compose stack. To point a run
+somewhere else, set the same keys as environment variables or repository secrets in the workflow
+(`TEST_Services__OrderService__BaseUrl`, `TEST_Authentication__OAuth2__ClientSecret`, …) — they take
+precedence over any `.env`. Locally, put the same keys into `.env` ([`.env.example`](../.env.example)).
+
 ## Running your own product's tests in CI
 
 The framework needs nothing CI-specific:

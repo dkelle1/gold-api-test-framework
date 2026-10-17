@@ -26,7 +26,7 @@
       "Edit(/examples/*/collections/**)",
       "Edit(/examples/*/perf/k6/**)",
       "Read(/**/.env)",
-      "Read(/**/.env.*)",
+      "Read(/**/.env.local)",
       "Bash(git push --force *)",
       "Bash(git push -f *)",
       "Bash(git push origin develop *)",

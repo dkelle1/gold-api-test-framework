@@ -65,6 +65,8 @@ suite was not run.
   entity, `Try…` methods return the raw response.
 - Python (`tools/`): standard library only, Python 3.10+, config-driven, ASCII-safe console output.
 - PowerShell scripts: ASCII only (Windows PowerShell 5.1 reads UTF-8 without BOM as ANSI).
+- Configuration: every setting is overridable from `.env` / environment (`TEST_<Section>__<Key>`). A new
+  setting gets a default in `appsettings.test.json` (or code) **and** a commented line in `.env.example`.
 
 ## Definition of done
 
@@ -91,7 +93,8 @@ suite was not run.
 
 **Never**
 - Edit generated files (see rule 4) — regenerate instead.
-- Commit secrets, tokens or real credentials; put secrets in `appsettings*.json` (use `TEST_…` env vars).
+- Commit secrets, tokens or real credentials, or a `.env` file; put secrets in `appsettings*.json`
+  (use `.env` locally / `TEST_…` env vars in CI).
 - Add `Thread.Sleep`/fixed delays or blind retries to make tests pass; mark tests `[Ignore]` to get green CI.
 - Reference `examples/` from `framework/` or `tools/`.
 - Push to `develop` or `main` directly, force-push shared branches, or rewrite published history.

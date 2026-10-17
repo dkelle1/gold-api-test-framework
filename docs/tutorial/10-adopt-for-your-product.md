@@ -92,6 +92,10 @@ for the others only the relative paths change.
    With `OAuth2ClientCredentials`, `ApiKey` or `StaticToken` you need no login code at all
    ([authentication reference](../framework/authentication.md)).
 
+   Keep `appsettings.test.json` for defaults and structure; put environment-specific values and
+   secrets into a git-ignored `.env` (template: [`.env.example`](../../.env.example)) locally and into
+   CI secrets in pipelines — the keys are the same (`TEST_Services__IdentityService__BaseUrl`, …).
+
 ---
 
 ## Writing the global setup

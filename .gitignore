@@ -50,3 +50,7 @@ __pycache__/
 # AI assistants: personal, uncommitted settings
 .claude/settings.local.json
 CLAUDE.local.md
+
+# Local configuration (copy .env.example); never commit
+.env
+.env.local

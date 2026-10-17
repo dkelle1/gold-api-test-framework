@@ -25,6 +25,61 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# .env — the same file the .NET framework reads (see docs/framework/core.md)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _parse_env_value(value: str) -> str:
+    if value[:1] == "'":
+        end = value.find("'", 1)
+        return value[1:end] if end > 0 else value[1:]
+    if value[:1] == '"':
+        out, i = [], 1
+        while i < len(value) and value[i] != '"':
+            if value[i] == "\\" and i + 1 < len(value):
+                i += 1
+                out.append({"n": "\n", "r": "\r", "t": "\t"}.get(value[i], value[i]))
+            else:
+                out.append(value[i])
+            i += 1
+        return "".join(out)
+    comment = value.find(" #")
+    return (value[:comment] if comment >= 0 else value).strip()
+
+
+def load_dotenv() -> Path | None:
+    """Apply a .env file to os.environ without overriding variables that are already set.
+
+    File: $TEST_ENV_FILE, else the nearest .env from the current directory upwards,
+    else <repo>/.env. Returns the file used, or None.
+    """
+    explicit = os.environ.get("TEST_ENV_FILE")
+    if explicit:
+        candidates = [Path(explicit)]
+    else:
+        cwd = Path.cwd().resolve()
+        candidates = [d / ".env" for d in (cwd, *cwd.parents)] + [REPO_ROOT / ".env"]
+    path = next((p for p in candidates if p.is_file()), None)
+    if path is None:
+        if explicit:
+            raise SystemExit(f"TEST_ENV_FILE points to a missing file: {explicit}")
+        return None
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].lstrip()
+        key, sep, value = line.partition("=")
+        if sep and key.strip():
+            os.environ.setdefault(key.strip(), _parse_env_value(value.strip()))
+    return path
+
+
+DOTENV_PATH = load_dotenv()
 DEFAULT_CONFIG = REPO_ROOT / "examples" / "demo-shop" / "api-tests" / "openapi-tools.json"
 CONFIG_PATH = Path(os.environ.get("OPENAPI_TOOLS_CONFIG", DEFAULT_CONFIG)).resolve()
 
@@ -53,7 +108,11 @@ class Service:
 
     @property
     def base_url(self) -> str:
-        return os.environ.get(self.env_var, self.default_base_url).rstrip("/")
+        """Tool-specific variable (e.g. AUTH_BASE_URL), else the .NET test setting
+        TEST_Services__<Name>__BaseUrl — one .env drives both — else the config default."""
+        return (os.environ.get(self.env_var)
+                or os.environ.get(f"TEST_Services__{self.name}__BaseUrl")
+                or self.default_base_url).rstrip("/")
 
 
 def _load_config(path: Path) -> dict:
