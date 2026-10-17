@@ -1,0 +1,118 @@
+{
+  "openapi": "3.0.1",
+  "info": { "title": "Widgets (contract validation fixture)", "version": "v1" },
+  "paths": {
+    "/api/widgets": {
+      "get": {
+        "operationId": "ListWidgets",
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Widget" } } } } },
+          "401": { "description": "Unauthorized" }
+        }
+      },
+      "post": {
+        "operationId": "CreateWidget",
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Widget" } } } },
+          "400": { "description": "Bad Request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/widgets/{id}": {
+      "get": {
+        "operationId": "GetWidget",
+        "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "format": "int32" } } ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Widget" } } } },
+          "404": { "description": "Not Found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "delete": {
+        "operationId": "DeleteWidget",
+        "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+        "responses": { "204": { "description": "No Content" } }
+      }
+    },
+    "/api/widgets/search/{term}": {
+      "get": {
+        "operationId": "SearchWidgets",
+        "parameters": [ { "name": "term", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Widget" } } } } }
+        }
+      }
+    },
+    "/api/shapes/{id}": {
+      "get": {
+        "operationId": "GetShape",
+        "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Shape" } } } }
+        }
+      }
+    },
+    "/api/ranged": {
+      "get": {
+        "operationId": "Ranged",
+        "responses": {
+          "2XX": { "description": "Any success", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "default": { "description": "Anything else" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Widget": {
+        "type": "object",
+        "required": [ "id", "name" ],
+        "properties": {
+          "id": { "type": "integer", "format": "int32" },
+          "name": { "type": "string", "maxLength": 20 },
+          "status": { "$ref": "#/components/schemas/WidgetStatus" },
+          "color": { "type": "string", "enum": [ "red", "blue" ] },
+          "price": { "type": "number", "minimum": 0 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "reference": { "type": "string", "format": "uuid" },
+          "owner": { "nullable": true, "oneOf": [ { "$ref": "#/components/schemas/Owner" } ] },
+          "note": { "type": "string", "nullable": true },
+          "parts": { "type": "array", "items": { "$ref": "#/components/schemas/Part" } }
+        }
+      },
+      "WidgetStatus": { "type": "integer", "format": "int32", "enum": [ 0, 1, 2 ] },
+      "Owner": {
+        "type": "object",
+        "properties": { "email": { "type": "string", "format": "email" } }
+      },
+      "Part": {
+        "type": "object",
+        "properties": { "quantity": { "type": "integer", "minimum": 1 } }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": { "message": { "type": "string" } }
+      },
+      "Shape": {
+        "oneOf": [ { "$ref": "#/components/schemas/Circle" }, { "$ref": "#/components/schemas/Square" } ],
+        "discriminator": { "propertyName": "kind", "mapping": { "circle": "#/components/schemas/Circle", "square": "#/components/schemas/Square" } }
+      },
+      "Circle": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ShapeBase" },
+          { "type": "object", "properties": { "radius": { "type": "number" } } }
+        ]
+      },
+      "Square": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ShapeBase" },
+          { "type": "object", "properties": { "side": { "type": "number" } } }
+        ]
+      },
+      "ShapeBase": {
+        "type": "object",
+        "required": [ "kind" ],
+        "properties": { "kind": { "type": "string" } }
+      }
+    }
+  }
+}

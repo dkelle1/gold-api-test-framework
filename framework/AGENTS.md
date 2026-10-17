@@ -10,6 +10,7 @@ library change. Read the root `AGENTS.md` first; these rules add to it.
 | `src/ApiTestFramework.Core` | config (`ConfigurationProvider`, `TestConfiguration`), DI (`ContainerProvider`, `ApiClientModule`), HTTP (`ApiClient`, `RequestBuilder`, `RequestFactory`), auth (`TokenProvider`, `IAuthenticationProvider`, `AuthenticationContext`), assertions, Allure logging, `BaseTest` |
 | `src/ApiTestFramework.OpenApi` | `OpenApiSpecLoader`, `SchemaExtractor`, `BuilderScaffolder`, `TestCaseScaffolder` — pure functions from OpenAPI to C# source |
 | `src/ApiTestFramework.Generator.Cli` | console front-end; reads a `generator.json` (`GeneratorConfig.cs`) |
+| `src/ApiTestFramework.Contracts` | `ContractValidation` (config, modes), `ContractValidator`, `JsonSchemaValidator`, `ShouldMatchContract()`, coverage report; plugs into `ResponseValidators` |
 | `tests/ApiTestFramework.Framework.Tests` | offline NUnit tests of all of the above |
 
 ## Rules
@@ -40,5 +41,5 @@ git diff --stat -- examples/
 
 ## Document
 
-Behaviour or API changes update `docs/framework/core.md`, `authentication.md` or `generators.md`
+Behaviour or API changes update `docs/framework/core.md`, `authentication.md`, `generators.md` or `contracts.md`
 in the same PR.

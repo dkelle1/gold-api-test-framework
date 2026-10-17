@@ -157,7 +157,10 @@ There is a step for the endpoint ([chapter 4](04-write-steps.md)):
 
 ### How it works…
 
-The scaffold gave the *list* and the *names*; the test supplies the *meaning*. Steps keep each test
+The scaffold gave the *list* and the *names*; the test supplies the *meaning*. The *contract* part is
+checked for you: with contract validation on (the demo shop runs it in `Fail` mode), every response
+these tests receive — 200 list, 401 — is validated against the documented status codes and schemas,
+so the test can focus on the business rule ([contract validation](../framework/contracts.md)). Steps keep each test
 at the level of the business rule — no URLs, headers or JSON in sight.
 
 ---
@@ -187,6 +190,9 @@ is logged and does not hide the test result. Deleting is admin-only in the demo 
 runs through the admin-bound steps.
 
 ### There's more…
+
+The contract coverage report (`contract-coverage.md`, also in the CI run summary) lists every
+documented response no test has produced yet — use it to pick the next scaffolds to promote.
 
 Prefer assertions that hold whatever else is in the database ("contains mine", "only matching
 items") over counts of global collections. That is what makes suites safe to run against shared

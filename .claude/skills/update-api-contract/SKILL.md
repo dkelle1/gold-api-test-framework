@@ -14,8 +14,9 @@ deliberately, then regenerate everything in **one commit**.
 - From a running service: `./examples/demo-shop/api-tests/scripts/refresh-swagger.ps1`
   (or `curl -s http://localhost:<port>/swagger/v1/swagger.json`). CI also uploads the live specs as the
   `live-swagger/` artifact of every run.
-- From a smoke-runner failure: the message shows field, expected and actual
-  (e.g. `value 0 not in enum ['Standard', …]`).
+- From a smoke-runner or contract-validation failure: the message shows operation, field, expected
+  and actual (e.g. `$.status: value 'Shipped' not in enum [0, 1, 2]`,
+  `a response body is not documented for 400`).
 
 ## 2. Merge into the curated contract — do not overwrite blindly
 

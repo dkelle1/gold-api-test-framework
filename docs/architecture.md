@@ -12,6 +12,7 @@ framework/                         ← reusable, knows no concrete service
 │   ├── ApiTestFramework.Core          HTTP client, request builder, auth, DI, config,
 │   │                                  assertions, Allure logging, BaseTest lifecycle
 │   ├── ApiTestFramework.OpenApi       OpenAPI loader, schema extractor, builder & test scaffolders
+│   ├── ApiTestFramework.Contracts     contract validation of responses + coverage report
 │   └── ApiTestFramework.Generator.Cli console front-end for the generators (generator.json)
 └── tests/
     └── ApiTestFramework.Framework.Tests   offline unit tests of the framework itself
@@ -35,6 +36,7 @@ flowchart TB
     end
     subgraph framework["framework/ + tools/"]
         Core["ApiTestFramework.Core"]
+        Contracts["ApiTestFramework.Contracts"]
         OpenApi["ApiTestFramework.OpenApi"]
         Cli["ApiTestFramework.Generator.Cli"]
         Py["tools/*.py"]
@@ -43,6 +45,9 @@ flowchart TB
 
     Tests --> Steps --> Clients
     Tests --> Core
+    Tests --> Contracts
+    Contracts --> Core
+    Contracts --> OpenApi
     Steps --> Core
     Cli --> OpenApi
     Cli -. "generates builders + scaffolds from" .-> Configs
@@ -87,6 +92,7 @@ sequenceDiagram
     C->>API: HTTP (retried on transient failures if RetryCount > 0)
     API-->>C: response
     C->>C: attach response to Allure
+    C->>C: response validators (contract: operation, status, body schema)
     C-->>S: RestResponse
     S-->>T: RestResponse (assert with ShouldHaveStatusCode / ShouldHaveData)
 ```

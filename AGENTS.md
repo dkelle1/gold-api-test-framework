@@ -10,7 +10,7 @@ A product-agnostic .NET 8 framework for generating API tests from OpenAPI contra
 in end-to-end flows, plus an example product (`examples/demo-shop`) that uses it and runs in CI.
 
 ```
-framework/src/        ApiTestFramework.Core · .OpenApi · .Generator.Cli   (reusable, knows no service)
+framework/src/        ApiTestFramework.Core · .Contracts · .OpenApi · .Generator.Cli   (reusable, knows no service)
 framework/tests/      ApiTestFramework.Framework.Tests                    (offline unit tests)
 tools/                Python tooling, configured by openapi-tools.json
 examples/demo-shop/   services/ (system under test) · api-tests/ (DemoShop.Clients/Steps/Tests)
@@ -109,6 +109,7 @@ suite was not run.
 - Runtime API (config, requests, retries, assertions, `BaseTest`): `docs/framework/core.md`
 - Authentication and identities: `docs/framework/authentication.md`
 - Generators (`generator.json`, builders, scaffolds): `docs/framework/generators.md`
+- Contract validation of responses: `docs/framework/contracts.md`
 - Python tools (`openapi-tools.json`): `docs/framework/python-tooling.md`
 - CI: `docs/ci.md` · Step-by-step tutorial: `docs/tutorial/README.md`
 

@@ -39,6 +39,7 @@ Allure results: `examples/demo-shop/api-tests/DemoShop.Tests/bin/Debug/net8.0/al
 |---------|-------------|--------|
 | `Generated files are stale` (unit job) | contract changed without regenerating, or a generated file was edited | `update-api-contract` |
 | smoke: `value X not in enum`, `expected string, got int`, 400 on generated payloads | contract drift (contract ≠ service) | contract (or the service, if the contract is the intended truth — ask) |
+| `Contract violation(s) for METHOD /route → status` at a request | the response differs from the committed contract (undocumented status/body, type, enum, missing/extra field) | decide which side is wrong: update the contract (`update-api-contract`) or report the service bug — never `WithoutResponseValidation()` to get green |
 | test gets 401 | token not provisioned / wrong identity / `WithoutAuth` misuse | `GlobalSetup`, identities, step binding |
 | 403 where 2xx expected | wrong actor (e.g. product cleanup not as admin) | step binding `AsIdentity(TestIdentities.Admin)` |
 | 409 on create, counts off, "already exists" | test data not unique / leaked from earlier runs | unique values + `RegisterCleanup` |
