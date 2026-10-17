@@ -217,6 +217,7 @@ Nothing in `framework/`, `tools/` or `scripts/ci/` references the example — CI
 - [ ] Contracts committed and reviewed (required fields, 401/403, enums as on the wire)
 - [ ] DTOs (NSwag or hand-written) and route constants
 - [ ] `appsettings.test.json`: services, authentication mode, identities; secrets only via `TEST_…` variables
+- [ ] Many services behind one IdP: one `Authentication:Clients` entry per IdP client, `AuthClient` per service
 - [ ] `GlobalSetup` initializing the container (and logging in for `SessionToken`)
 - [ ] `generator.json` → builders + scaffolds generated and committed; custom partials for domain rules
 - [ ] One step class per service; happy-path + `Try…` variants

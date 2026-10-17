@@ -10,6 +10,7 @@ namespace ApiTestFramework.OpenApi.Loader;
 /// <see cref="GetRequestSchemas"/> returns only the schemas reachable from
 /// request bodies (transitively, through nested objects, arrays and oneOf
 /// nullable wrappers) — exactly the set the test-data builders are generated for.
+/// Only JSON request bodies (<c>application/json</c>, <c>*+json</c>) count.
 /// </para>
 /// </summary>
 public static class SchemaExtractor
@@ -31,8 +32,9 @@ public static class SchemaExtractor
         {
             foreach (var operation in pathItem.Operations.Values)
             {
+                // builders produce JSON DTOs: form, multipart or text bodies get none
                 var refId = operation.RequestBody?.Content?
-                    .FirstOrDefault().Value?.Schema?.Reference?.Id;
+                    .FirstOrDefault(c => IsJson(c.Key)).Value?.Schema?.Reference?.Id;
                 if (refId is not null && visited.Add(refId))
                     queue.Enqueue(refId);
             }
@@ -156,6 +158,13 @@ public static class SchemaExtractor
         "boolean" => "bool",
         _ => "object"
     };
+
+    private static bool IsJson(string mediaType)
+    {
+        var type = mediaType.Split(';')[0].Trim();
+        return type.Equals("application/json", StringComparison.OrdinalIgnoreCase)
+               || type.EndsWith("+json", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static string ToPascalCase(string value)
     {

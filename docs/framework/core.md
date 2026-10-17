@@ -49,7 +49,11 @@ The Python tools read the same file ([python-tooling.md](python-tooling.md#confi
 ```jsonc
 {
   "Services": {                       // one named ApiClient per entry
-    "OrderService": { "BaseUrl": "http://localhost:5200", "Name": "Orders" }   // Name: label in logs/Allure (default: key)
+    "OrderService": {
+      "BaseUrl": "http://localhost:5200",
+      "Name": "Orders",               // label in logs/Allure (default: key)
+      "AuthClient": "Orders"          // optional: named auth client (Authentication:Clients) of its group
+    }
   },
   "Identities": [                     // optional; your GlobalSetup decides what to do with them
     { "Name": "admin", "Role": "Admin" }
@@ -65,6 +69,7 @@ The Python tools read the same file ([python-tooling.md](python-tooling.md#confi
 |----------|---------|
 | Service URL in CI | `TEST_Services__OrderService__BaseUrl=http://order-service:8080` |
 | Secret | `TEST_Authentication__OAuth2__ClientSecret=...` |
+| Secret of a named auth client | `TEST_Authentication__Clients__Orders__OAuth2__ClientSecret=...` |
 | Environment file | `TEST_ENVIRONMENT=Staging` → loads `appsettings.test.Staging.json` |
 
 > The framework itself only reads `Services`, `Authentication`, `DefaultTimeoutSeconds` and
@@ -81,7 +86,9 @@ ContainerProvider.Initialize(builder => builder.RegisterModule(new ApiClientModu
 ```
 
 `ApiClientModule` registers, for every entry of `Services`, a singleton `ApiClient` named after
-the entry key, plus the `TestConfiguration` itself. Resolve a client by name:
+the entry key (carrying the entry's `AuthClient`, see
+[authentication.md](authentication.md#one-identity-provider-a-client-per-group-of-services)),
+plus the `TestConfiguration` itself. Resolve a client by name:
 
 ```csharp
 var orders = ContainerProvider.ResolveNamed<ApiClient>("OrderService");
@@ -122,8 +129,10 @@ RequestBuilder.Create()
     .WithContentType("application/merge-patch+json");
 ```
 
-Authentication per request — `.AsIdentity("admin")`, `.WithBearerToken(raw)`, `.WithoutAuth()` —
-is described in [authentication.md](authentication.md#per-request-control).
+Authentication per request — `.AsIdentity("admin")`, `.WithBearerToken(raw)`, `.AsClient("Orders")`,
+`.WithoutAuth()` — is described in [authentication.md](authentication.md#per-request-control).
+`ApiClient.SendAsync(builder)` builds the request with the client's `AuthClient`
+(`builder.Build(authClient)`); a bare `builder.Build()` uses the default provider.
 
 Keep route templates in the consumer project as constants (the example uses
 `DemoShop.Clients.ProductServiceRoutes`), so a renamed route is a one-line change.

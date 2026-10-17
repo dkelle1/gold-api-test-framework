@@ -15,6 +15,10 @@ in natural CRUD order, with real chained data:
      (field types, unexpected nulls on non-nullable fields)
   7. additionally verifies protected endpoints return 401 without a token
 
+Services with an "authClient" (openapi-tools.json) are called with that OAuth2
+client's token (client-credentials grant against the shared token endpoint)
+instead of the registered user's.
+
 Usage:
     python3 tools/smoke_runner.py                 # run everything
     python3 tools/smoke_runner.py --service product
@@ -45,6 +49,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from openapi_common import (  # noqa: E402
     SERVICES, Endpoint, Service, configure_console,
     crud_sort_key, discover_auth_flow, example_body, example_param_value,
+    fetch_client_token,
     find_foreign_keys, find_payload_field, get_at_path, load_all,
     resolve_schema, resource_of, set_at_path,
 )
@@ -161,6 +166,7 @@ class CheckResult:
 @dataclass
 class RunState:
     token: str | None = None
+    client_tokens: dict[str, str] = dc_field(default_factory=dict)  # auth client → token
     id_pool: dict[str, object] = dc_field(default_factory=dict)       # resource → created id
     payload_pool: dict[str, dict] = dc_field(default_factory=dict)    # resource → create payload
     results: list[CheckResult] = dc_field(default_factory=list)
@@ -251,6 +257,28 @@ def acquire_token(state: RunState, role: str | None = None) -> bool:
     return False
 
 
+def token_for(service: Service, state: RunState) -> str | None:
+    """The service's auth-client token, else the registered user's."""
+    if service.auth_client:
+        return state.client_tokens.get(service.auth_client)
+    return state.token
+
+
+def acquire_client_tokens(state: RunState, services: list[Service]) -> bool:
+    ok = True
+    for client in dict.fromkeys(s.auth_client for s in services if s.auth_client):
+        issuer = next((s for s in SERVICES.values() if s.is_auth_issuer), services[0])
+        started = time.monotonic()
+        token, detail = fetch_client_token(client)
+        elapsed = int((time.monotonic() - started) * 1000)
+        if token:
+            state.client_tokens[client] = token
+        ok = ok and token is not None
+        state.record(issuer, f"acquire token for client {client} (client_credentials)",
+                     token is not None, "" if token else detail, elapsed)
+    return ok
+
+
 def run_endpoint(service: Service, spec: dict, endpoint: Endpoint,
                  state: RunState, auth_checks: bool,
                  create_endpoint: Endpoint | None = None) -> None:
@@ -264,7 +292,7 @@ def run_endpoint(service: Service, spec: dict, endpoint: Endpoint,
         try:
             victim = http_request(
                 "POST", service.base_url + create_endpoint.path, victim_body,
-                state.token if create_endpoint.requires_auth else None)
+                token_for(service, state) if create_endpoint.requires_auth else None)
             if victim.status == (create_endpoint.success_status or 201) \
                     and isinstance(victim.body, dict) and "id" in victim.body:
                 pooled = state.id_pool[resource]
@@ -291,7 +319,7 @@ def _execute(service: Service, spec: dict, endpoint: Endpoint,
 
     try:
         resp = http_request(endpoint.method, url, body,
-                            state.token if endpoint.requires_auth else None)
+                            token_for(service, state) if endpoint.requires_auth else None)
     except (urllib.error.URLError, OSError) as exc:
         state.record(service, label, False, f"unreachable: {exc}")
         return
@@ -351,16 +379,20 @@ def main() -> int:
         for service, _, endpoints in plan:
             print(f"{service.name} ({service.base_url}) — {len(endpoints)} endpoints:")
             for ep in endpoints:
-                auth = "JWT" if ep.requires_auth else "anon"
+                auth = (f"client {service.auth_client}" if service.auth_client else "JWT")                 if ep.requires_auth else "anon"
                 print(f"  {ep.method:<6} {ep.path:<40} [{auth}] expect {ep.success_status}")
         return 0
 
     state = RunState()
-    needs_token = any(ep.requires_auth for _, _, eps in plan for ep in eps)
+    needs_token = any(ep.requires_auth for s, _, eps in plan if not s.auth_client for ep in eps)
 
     print("── smoke run ──────────────────────────────────────────────")
     if needs_token and not acquire_token(state, args.role):
         print("\ncannot acquire JWT — aborting (is the auth service running?)")
+        _summarize(state, args.json)
+        return 1
+    if not acquire_client_tokens(state, [s for s, _, _ in plan]):
+        print("\ncannot acquire a client token — aborting (check authClients / client secrets)")
         _summarize(state, args.json)
         return 1
 
@@ -369,6 +401,10 @@ def main() -> int:
             continue  # auth endpoints already exercised by acquire_token
         print(f"\n{service.name} @ {service.base_url}")
         for endpoint in endpoints:
+            if endpoint.form_body_schema is not None and endpoint.request_body_schema is None:
+                print(f"  [SKIP] {endpoint.method} {endpoint.path} (form body - "
+                      "token endpoints are exercised by the token acquisition)")
+                continue
             create_ep = next(
                 (e for e in endpoints if e.method == "POST"
                  and resource_of(e.path) == resource_of(endpoint.path)), None)

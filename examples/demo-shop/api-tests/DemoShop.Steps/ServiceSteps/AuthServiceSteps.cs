@@ -132,6 +132,25 @@ public class AuthServiceSteps
     }
 
     /// <summary>
+    /// Sends an OAuth2 token request (application/x-www-form-urlencoded) to the shared
+    /// authorization server and returns the raw response. The test framework fetches client
+    /// tokens on its own (Authentication:Clients); this step is for testing the endpoint itself.
+    /// </summary>
+    [AllureStep("Request an OAuth2 token (raw response)")]
+    public async Task<RestResponse<TokenResponse>> RequestTokenAsync(IReadOnlyDictionary<string, string> form)
+    {
+        _logger.Information("Requesting token: grant {Grant}, client {Client}",
+            form.GetValueOrDefault("grant_type"), form.GetValueOrDefault("client_id"));
+
+        var body = string.Join("&", form.Select(f =>
+            $"{Uri.EscapeDataString(f.Key)}={Uri.EscapeDataString(f.Value)}"));
+        return await _client.SendAsync<TokenResponse>(
+            RequestFactory.Post(AuthServiceRoutes.Token, body)
+                .WithContentType("application/x-www-form-urlencoded")
+                .WithoutAuth());
+    }
+
+    /// <summary>
     /// Attempts to login and returns the raw response.
     /// Useful for negative test scenarios (wrong password, non-existent user).
     /// </summary>

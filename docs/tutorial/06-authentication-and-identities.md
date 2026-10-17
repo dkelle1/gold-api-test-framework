@@ -169,6 +169,77 @@ await _steps.WithToken(adHocAdmin.Token.AccessToken).DeleteProductAsync(product.
 Per-test users are what make end-to-end journeys isolated — [chapter 7](07-end-to-end-flows.md)
 uses one per journey.
 
+## Calling groups of services as OAuth2 clients
+
+Many organisations put all services behind one authorization server and give the test suite one
+OAuth2 client **per group of services**, each with its own scopes and audience. The demo shop does
+exactly that: AuthService doubles as the authorization server (`POST /connect/token`), ProductService
+belongs to the **Catalog** group and OrderService to the **Orders** group.
+
+### Getting ready
+
+The demo stack is running (chapter 1). The clients are registered at the authorization server in
+`services/AuthService/appsettings.json` (`OAuthClients`); the services accept tokens of their group
+through `Jwt:ClientAudience`.
+
+### How to do it…
+
+1. Describe the clients once and assign each service to its client in `appsettings.test.json`:
+
+   ```jsonc
+   "Services": {
+     "AuthService":    { "BaseUrl": "http://localhost:5300" },
+     "ProductService": { "BaseUrl": "http://localhost:5100", "AuthClient": "Catalog" },
+     "OrderService":   { "BaseUrl": "http://localhost:5200", "AuthClient": "Orders" }
+   },
+   "Authentication": {
+     "Mode": "SessionToken",                        // services without a client
+     "OAuth2": { "TokenUrl": "http://localhost:5300/connect/token" },
+     "Clients": {
+       "Catalog": { "Mode": "OAuth2ClientCredentials",
+                    "OAuth2": { "ClientId": "catalog-api-tests", "Scope": "catalog.read catalog.write catalog.admin" } },
+       "Orders":  { "Mode": "OAuth2ClientCredentials",
+                    "OAuth2": { "ClientId": "orders-api-tests",  "Scope": "orders.read orders.write catalog.read" } }
+     }
+   }
+   ```
+
+2. Put the secrets where secrets go: `.env` locally, the CI secret store in pipelines:
+
+   ```bash
+   TEST_Authentication__Clients__Catalog__OAuth2__ClientSecret=catalog-api-tests-secret
+   TEST_Authentication__Clients__Orders__OAuth2__ClientSecret=orders-api-tests-secret
+   ```
+
+   In the demo these two lines come with `.env.example` (chapter 1); CI sets them from repository
+   secrets, falling back to the stack's defaults.
+
+3. Write the tests as before. Steps without a binding now use their service's client; to check that
+   a token of another group is refused, borrow that group's client:
+
+   ```csharp
+   var response = await new OrderServiceSteps().AsClient(AuthClients.Catalog).GetAllOrdersAsync();
+   response.ShouldHaveStatusCode(HttpStatusCode.Unauthorized);    // R-CLIENT-3: wrong audience
+   ```
+
+### How it works…
+
+Each client becomes one OAuth2 provider: it takes the shared `Authentication` settings (mode, token
+URL, …), overrides them with its own and never inherits credentials. The token is fetched on the
+first request of any service in the group and cached until shortly before it expires, so a suite
+with forty services in three groups requests three tokens. `ApiClient.SendAsync` passes the
+service's `AuthClient` to `RequestBuilder.Build`; `AsIdentity`, `WithoutAuth` and explicit headers
+still take precedence, so the user-based tests of this chapter keep working unchanged.
+
+### There's more…
+
+- [`ServiceGroupClientTests`](../../examples/demo-shop/api-tests/DemoShop.Tests/Authorization/ServiceGroupClientTests.cs)
+  shows the cross-group checks (wrong audience → 401, missing scope → 403) and the token relay
+  from OrderService to ProductService; [`TokenEndpointTests`](../../examples/demo-shop/api-tests/DemoShop.Tests/AuthService/TokenEndpointTests.cs)
+  tests the authorization server itself.
+- A group can use a different scheme altogether (`"Legacy": { "Mode": "ApiKey", ... }`).
+- The smoke runner uses the same clients (`authClients` in `openapi-tools.json`).
+
 ## See also
 
 - [Authentication reference](../framework/authentication.md)

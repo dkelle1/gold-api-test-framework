@@ -8,7 +8,7 @@
 ```
 examples/demo-shop/
 ├── services/                 # the system under test (3 × ASP.NET Core minimal APIs)
-│   ├── AuthService/          #   :5300  register / login → JWT
+│   ├── AuthService/          #   :5300  register / login → JWT; OAuth2 token endpoint for clients
 │   ├── ProductService/       #   :5100  product catalog (JWT, delete = Admin only)
 │   └── OrderService/         #   :5200  orders, validates products via ProductService
 ├── docker-compose.yml        # SQL Server + Redis + the three services
@@ -29,6 +29,7 @@ or the tests in any way. The API tests depend on the framework, never the other 
 ## Run it
 
 ```bash
+cp .env.example .env        # once: the OAuth2 client secrets the suite needs (git-ignored)
 docker compose -f examples/demo-shop/docker-compose.yml up -d --build --wait
 dotnet test examples/demo-shop/api-tests/DemoShop.Tests
 docker compose -f examples/demo-shop/docker-compose.yml down -v
@@ -36,7 +37,8 @@ docker compose -f examples/demo-shop/docker-compose.yml down -v
 
 Swagger UI: <http://localhost:5300>, <http://localhost:5100>, <http://localhost:5200>.
 
-Ports and secrets of the stack (`SQL_PORT`, `AUTH_PORT`, …, `SA_PASSWORD`, `JWT_SECRET_KEY`) have
+Ports and secrets of the stack (`SQL_PORT`, `AUTH_PORT`, …, `SA_PASSWORD`, `JWT_SECRET_KEY`,
+`CATALOG_CLIENT_SECRET`, `ORDERS_CLIENT_SECRET`) have
 defaults in `docker-compose.yml`; override them from the repository-root `.env` with
 `docker compose --env-file .env -f examples/demo-shop/docker-compose.yml up -d --build --wait`
 (and point `TEST_Services__…__BaseUrl` at changed ports).
@@ -55,6 +57,23 @@ but they need SQL Server (`localhost:1433`) and Redis (`localhost:6379`).
 
 `AuthResponse { Token { AccessToken, TokenType, ExpiresAt, ExpiresInSeconds }, User { Username, Email, Role } }`.
 Tokens are HS256 JWTs carrying the `role` claim, valid for 60 minutes.
+
+AuthService is also the **shared authorization server** for machine clients:
+
+| Endpoint | Success | Errors |
+|----------|---------|--------|
+| `POST /connect/token` (form: `grant_type=client_credentials`, `client_id`, `client_secret`, optional `scope`, `audience`; or HTTP Basic) | 200 `{ access_token, token_type, expires_in, scope }` | 400 `unsupported_grant_type` / `invalid_scope` / `invalid_target` / `invalid_request`, 401 `invalid_client` |
+
+| Client | Group | Scopes | Audiences (`aud`) |
+|--------|-------|--------|-------------------|
+| `catalog-api-tests` | Catalog: ProductService | `catalog.read catalog.write catalog.admin` | `catalog` |
+| `orders-api-tests` | Orders: OrderService | `orders.read orders.write catalog.read` | `orders`, `catalog` |
+
+ProductService accepts user tokens and tokens with audience `catalog`, OrderService user tokens and
+audience `orders` (`Jwt:ClientAudience`). `DELETE /api/products/{id}` needs the `Admin` role or the
+`catalog.admin` scope. The Orders client also gets the catalog audience because OrderService passes
+the caller's token on to ProductService. Rules: `R-CLIENT-*` in
+[`api-tests/domain-rules.md`](api-tests/domain-rules.md).
 
 ### ProductService — `:5100` (Bearer token required)
 
@@ -101,6 +120,9 @@ These are known and intentional — useful as test targets, not as production pa
   `appsettings.json` / `docker-compose.yml`.
 - Placing an order checks stock but **does not decrement it**.
 - Orders have no owner: any authenticated user can read or change any order.
+- Machine clients are registered in `AuthService/appsettings.json`, their secrets come from
+  `docker-compose.yml` (`CATALOG_CLIENT_SECRET`, `ORDERS_CLIENT_SECRET`); only product deletion
+  checks a scope (`catalog.admin`), other operations accept any token of the right audience.
 - Databases are created with `EnsureCreated()` (no migrations); Redis caches user and order lookups.
 - Health checks only test that the port is open; there are no `/health` endpoints.
 

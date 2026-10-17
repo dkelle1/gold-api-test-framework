@@ -33,7 +33,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from openapi_common import (  # noqa: E402
     COLLECTION_NAME, COLLECTIONS_DIR, SERVICES, AuthFlow, Endpoint, Service, configure_console,
-    discover_auth_flow, example_body, example_param_value, load_all,
+    discover_auth_flow, example_body, example_form, example_param_value, load_all,
 )
 
 POSTMAN_DIR = COLLECTIONS_DIR / "postman"
@@ -119,6 +119,14 @@ def build_postman_request(service: Service, spec: dict, endpoint: Endpoint,
             "mode": "raw",
             "raw": json.dumps(body, indent=2),
             "options": {"raw": {"language": "json"}},
+        }
+    form = example_form(spec, endpoint)
+    if body is None and form is not None:
+        request["header"].append(
+            {"key": "Content-Type", "value": "application/x-www-form-urlencoded"})
+        request["body"] = {
+            "mode": "urlencoded",
+            "urlencoded": [{"key": k, "value": v, "type": "text"} for k, v in form.items()],
         }
     if not endpoint.requires_auth:
         request["auth"] = {"type": "noauth"}
@@ -208,9 +216,12 @@ def build_bru_request(service: Service, spec: dict, endpoint: Endpoint,
         "seq": str(seq),
     })]
 
+    form = example_form(spec, endpoint) if body is None else None
     method_block: dict[str, str] = {"url": url}
     if body is not None:
         method_block["body"] = "json"
+    elif form is not None:
+        method_block["body"] = "formUrlEncoded"
     method_block["auth"] = "inherit" if endpoint.requires_auth else "none"
     parts.append(bru_block(endpoint.method.lower(), method_block))
 
@@ -229,6 +240,8 @@ def build_bru_request(service: Service, spec: dict, endpoint: Endpoint,
         body_json = json.dumps(body, indent=2)
         indented = "\n".join("  " + line for line in body_json.splitlines())
         parts.append(f"body:json {{\n{indented}\n}}\n")
+    elif form is not None:
+        parts.append(bru_block("body:form-urlencoded", form))
 
     if is_token_endpoint:
         accessor = "".join(f"?.{p}" for p in auth_flow.token_json_path)

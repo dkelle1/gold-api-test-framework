@@ -17,11 +17,24 @@ differ (see `../README.md`).
 | R-AUTH-3 | Logging in with a wrong password is rejected with 401. |
 | R-AUTH-4 | Every Product and Order operation requires a valid token; without one the answer is 401. |
 
+## Machine clients — shared authorization server (AuthService)
+
+Test suites and other services call the APIs as **OAuth2 clients**, one client per group of
+services, instead of as users.
+
+| ID | Rule |
+|----|------|
+| R-CLIENT-1 | `POST /connect/token` issues tokens to registered clients with `grant_type=client_credentials` (form-encoded; credentials as form fields or HTTP Basic). Unknown client or wrong secret: 401 `invalid_client`; any other grant type: 400 `unsupported_grant_type`. |
+| R-CLIENT-2 | A client may request only its own scopes (otherwise 400 `invalid_scope`); without `scope` it gets all of them. The response lists the granted scopes. |
+| R-CLIENT-3 | A client token is valid only for the services of its group (token audience): **Catalog** = ProductService, **Orders** = OrderService plus the catalog, because OrderService passes the caller's token on to ProductService when it checks the ordered products. A token of another group is rejected with 401. |
+| R-CLIENT-4 | Deleting a product needs the `Admin` role or the `catalog.admin` scope: a client without it gets 403 and the product is unchanged. Other operations do not check scopes *(demo simplification)*. |
+| R-CLIENT-5 | Clients of the demo: `catalog-api-tests` (`catalog.read catalog.write catalog.admin`, audience `catalog`) and `orders-api-tests` (`orders.read orders.write catalog.read`, audiences `orders`, `catalog`). |
+
 ## Catalog — ProductService
 
 | ID | Rule |
 |----|------|
-| R-PROD-1 | Any authenticated user may create and update products. Only `Admin` may delete them: other users get 403 and the product is unchanged; anonymous callers get 401. |
+| R-PROD-1 | Any authenticated user may create and update products. Only `Admin` may delete them: other users get 403 and the product is unchanged; anonymous callers get 401. Machine clients: R-CLIENT-4. |
 | R-PROD-2 | A product needs a name and a price greater than zero (400 otherwise). |
 | R-PROD-3 | The product list and the category listing show **active** products only; the category must match exactly. |
 | R-PROD-4 | A deactivated product (`isActive = false`) is still readable by id. |

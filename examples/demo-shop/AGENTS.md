@@ -32,7 +32,11 @@ uses the framework. Read the root `AGENTS.md` first; these rules add to it.
 ## Test rules
 
 - Fixtures use steps; identities via `AsIdentity(TestIdentities.Admin)` / `RegisterIdentityAsync`.
-  `DELETE /api/products/{id}` is admin-only — cleanup of products must run as admin.
+  `DELETE /api/products/{id}` is admin-only — cleanup of products must run as admin (or as the
+  `Catalog` client, which has `catalog.admin`).
+- Unbound steps of ProductService / OrderService authenticate as their group's OAuth2 client
+  (`AuthClient` in `appsettings.test.json`: `Catalog` / `Orders`, rules `R-CLIENT-*`); user-role
+  behaviour is tested with `AsIdentity`, cross-group checks with `AsClient(AuthClients.X)`.
 - Own your data: unique names/categories/e-mails per test; `RegisterCleanup` immediately after create.
 - Partial updates use plain DTOs (`new UpdateOrderRequest { Status = … }`), not builders.
 - Known demo simplifications (anyone can register as Admin, orders don't decrement stock, …) are
