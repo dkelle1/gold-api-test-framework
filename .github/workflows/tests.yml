@@ -179,12 +179,32 @@ jobs:
           find examples -path "*/bin/*/allure-results" -type d -exec cp -r {}/. allure-results/ \;
           docker compose -f "$EXAMPLE_COMPOSE" logs --no-color > service-logs.txt 2>&1 || true
 
-      - name: Generate Allure report
+      - name: Generate Allure report (single file)
         if: always()
         run: |
           if [ -n "$(ls -A allure-results 2>/dev/null)" ]; then
-            npx --yes allure-commandline@2.29.0 generate allure-results -o allure-report --clean
+            # --single-file: one self-contained index.html (attachments embedded) that opens
+            # straight from disk — no web server, no Allure CLI needed to view it
+            npx --yes allure-commandline@2.29.0 generate allure-results -o allure-report --clean --single-file
           fi
+
+      - name: Upload Allure report
+        id: allure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: allure-report/index.html
+          if-no-files-found: ignore
+
+      - name: Link the Allure report in the summary
+        if: always() && steps.allure.outputs.artifact-url != ''
+        run: |
+          {
+            echo "### Allure report"
+            echo ""
+            echo "[Download allure-report](${{ steps.allure.outputs.artifact-url }}) — one self-contained \`index.html\`; unzip and open it in a browser."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload results
         if: always()
@@ -194,7 +214,6 @@ jobs:
           path: |
             test-results/
             allure-results/
-            allure-report/
             contract-coverage/
             live-swagger/
             service-logs.txt

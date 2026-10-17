@@ -48,7 +48,8 @@ checks.
 
 1. The run page shows a summary per job: totals and the names and first error lines of failed
    tests.
-2. Download the `integration-test-results` artifact and open `allure-report/index.html` for the
+2. Follow the *Allure report* link in the run summary (artifact `allure-report`), unzip it and open
+   the single `index.html` — no server needed — for the
    full report with every request and response.
 3. `service-logs.txt` holds the compose logs of all services; `live-swagger/` what the running
    services actually expose (compare it with the committed contract when a contract check fails).

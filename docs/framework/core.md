@@ -158,7 +158,8 @@ response (status, headers, pretty-printed body) to the current Allure step. Step
 
 `Allure.NUnit` 2.12 writes results next to the test assembly
 (`bin/<Configuration>/net8.0/allure-results`); the CI pipelines copy them to the workspace —
-see [CI](../ci.md). Locally: `allure serve <that folder>`.
+see [CI](../ci.md). Locally: `allure serve <that folder>`, or
+`allure generate <that folder> -o allure-report --single-file` for one self-contained HTML file.
 
 Logging uses Serilog's static `Log`. Configure `Log.Logger` in your `GlobalSetup`; `BaseTest`
 logs fixture and test start/finish with the test name.
