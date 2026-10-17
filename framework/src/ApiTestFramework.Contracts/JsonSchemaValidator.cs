@@ -298,9 +298,9 @@ public sealed class JsonSchemaValidator
     private static void CheckRange(decimal number, OpenApiSchema schema, string path, List<string> errors)
     {
         if (schema.Minimum is { } min && (schema.ExclusiveMinimum == true ? number <= min : number < min))
-            errors.Add($"{path}: {number} is below the minimum {min}");
+            errors.Add(FormattableString.Invariant($"{path}: {number} is below the minimum {min}"));
         if (schema.Maximum is { } max && (schema.ExclusiveMaximum == true ? number >= max : number > max))
-            errors.Add($"{path}: {number} is above the maximum {max}");
+            errors.Add(FormattableString.Invariant($"{path}: {number} is above the maximum {max}"));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

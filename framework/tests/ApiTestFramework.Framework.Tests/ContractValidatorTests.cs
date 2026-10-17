@@ -141,6 +141,8 @@ public class ContractValidatorTests : BaseTest
 
         violations.Should().Contain(v => v.StartsWith("$.name: longer than maxLength 20"));
         violations.Should().Contain(v => v.StartsWith("$.price: -1 is below the minimum 0"));
+        WidgetViolations("""{"id":1,"name":"a","price":-1.5,"note":null}""")
+            .Should().Contain("$.price: -1.5 is below the minimum 0", "messages are culture-invariant");
         violations.Should().Contain(v => v.StartsWith("$.parts[1].quantity: 0 is below the minimum 1"));
     }
 
