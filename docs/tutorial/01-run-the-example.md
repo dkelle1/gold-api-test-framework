@@ -104,6 +104,13 @@ releases page) and run the example suite once.
 allure serve examples/demo-shop/api-tests/DemoShop.Tests/bin/Debug/net8.0/allure-results
 ```
 
+To get one file you can open from disk or send to someone (what CI publishes):
+
+```bash
+allure generate examples/demo-shop/api-tests/DemoShop.Tests/bin/Debug/net8.0/allure-results -o allure-report --clean --single-file
+# open allure-report/index.html
+```
+
 ### How it works…
 
 Each `[AllureStep]` method of a step class becomes a step in the report, and every HTTP call made
@@ -113,8 +120,8 @@ attaches a summary of the offending response. Suites and features come from `[Al
 
 ### There's more…
 
-- In CI you do not need the CLI: every run uploads a ready-made HTML report as an artifact
-  ([chapter 9](09-ci-and-reporting.md)).
+- In CI you do not need the CLI: every run uploads the report as a single self-contained
+  `index.html` (artifact `allure-report`), linked from the run summary ([chapter 9](09-ci-and-reporting.md)).
 - Request attachments include the `Authorization` header. Do not share reports produced with real
   credentials.
 

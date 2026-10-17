@@ -20,7 +20,8 @@ Each run publishes a Markdown summary (totals and failed test names, from TRX vi
 | Artifact | Contents |
 |----------|----------|
 | `unit-test-results` | framework TRX, mock smoke report |
-| `integration-test-results` | example TRX, `allure-results/`, **`allure-report/index.html`**, `contract-coverage/` (also appended to the run summary), smoke JSON, `live-swagger/` (what the running services expose — handy to compare with the curated contract), `service-logs.txt` |
+| **`allure-report`** | the Allure report as **one self-contained `index.html`** (attachments embedded) — unzip and open it in a browser, no server or Allure CLI needed; the run summary links to it |
+| `integration-test-results` | example TRX, raw `allure-results/`, `contract-coverage/` (also appended to the run summary), smoke JSON, `live-swagger/` (what the running services expose — handy to compare with the curated contract), `service-logs.txt` |
 
 ### The "generated code is up to date" gate
 

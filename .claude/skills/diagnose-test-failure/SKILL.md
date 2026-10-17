@@ -18,9 +18,10 @@ gh run list --branch <branch> --limit 5
 gh run view <run-id>                                    # jobs + failed steps
 gh run view <run-id> --log-failed                       # failing step logs
 gh run download <run-id> -n integration-test-results -D ./ci-artifacts
+gh run download <run-id> -n allure-report -D ./ci-artifacts            # single self-contained index.html
 ```
 
-Artifacts: `test-results/*.trx`, `allure-report/index.html` (every request/response),
+Artifacts: `allure-report/index.html` (single file, every request/response), `test-results/*.trx`,
 `service-logs.txt` (docker compose logs), `live-swagger/` (what services expose), smoke JSON reports.
 The run page summary lists failed tests with their first error line.
 
