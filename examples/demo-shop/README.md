@@ -36,6 +36,11 @@ docker compose -f examples/demo-shop/docker-compose.yml down -v
 
 Swagger UI: <http://localhost:5300>, <http://localhost:5100>, <http://localhost:5200>.
 
+Ports and secrets of the stack (`SQL_PORT`, `AUTH_PORT`, …, `SA_PASSWORD`, `JWT_SECRET_KEY`) have
+defaults in `docker-compose.yml`; override them from the repository-root `.env` with
+`docker compose --env-file .env -f examples/demo-shop/docker-compose.yml up -d --build --wait`
+(and point `TEST_Services__…__BaseUrl` at changed ports).
+
 Without Docker you can run each service with `dotnet run --project examples/demo-shop/services/<Service>`,
 but they need SQL Server (`localhost:1433`) and Redis (`localhost:6379`).
 

@@ -33,6 +33,8 @@ public class GlobalSetup
 
         // Load configuration
         var config = ConfigurationProvider.GetTestConfiguration();
+        if (DotEnv.LoadedFrom is not null)
+            Log.Information("Loaded {Count} setting(s) from {File}", DotEnv.LoadedKeys.Count, DotEnv.LoadedFrom);
         Log.Information("Environment: {Env}", config.Environment);
         foreach (var (name, service) in config.Services)
             Log.Information("{Service} URL: {Url}", name, service.BaseUrl);

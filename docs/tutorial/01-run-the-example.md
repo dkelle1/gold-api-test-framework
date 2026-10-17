@@ -16,6 +16,9 @@ In this chapter:
 ### Getting ready
 
 Install the .NET 8 SDK and Docker, clone the repository and open a terminal in its root.
+Nothing needs configuring for the example — the defaults match the stack. To change anything (ports,
+URLs, credentials, contract-validation mode), copy [`.env.example`](../../.env.example) to `.env` and
+uncomment the lines you need; tests, Python tools and (with `--env-file .env`) docker compose read it.
 
 ### How to do it…
 

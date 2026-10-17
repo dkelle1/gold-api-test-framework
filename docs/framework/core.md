@@ -21,9 +21,28 @@ the `BaseTest` lifecycle. It contains no knowledge of any concrete service.
 
 `ConfigurationProvider` builds an `IConfiguration` from, in order of precedence (last wins):
 
-1. `appsettings.test.json` next to the test assembly (**required**),
+1. `appsettings.test.json` next to the test assembly (**required** — the defaults),
 2. `appsettings.test.{TEST_ENVIRONMENT}.json` (optional; `TEST_ENVIRONMENT` defaults to `Development`),
-3. environment variables prefixed with `TEST_` (`__` separates sections).
+3. environment variables prefixed with `TEST_` (`__` separates sections) — **including the values of a
+   `.env` file**; variables set in the real environment win over the file.
+
+### `.env`
+
+Everything can be set in one git-ignored `.env` file; the repository root has a complete, commented
+template: [`.env.example`](../../.env.example) (`cp .env.example .env`). `DotEnv` loads it before the
+configuration is built:
+
+- **which file:** the path in `TEST_ENV_FILE`, otherwise the nearest `.env` walking up from the test
+  assembly directory (so the repository root's `.env` is found);
+- **keys:** exactly the environment-variable names — `TEST_Services__OrderService__BaseUrl=…`,
+  `TEST_Identities__0__Name=admin`, `TEST_Authentication__OAuth2__ClientSecret=…`;
+- **syntax:** `KEY=value`, `#` comments, optional `export`, `"double"` (with `\n` escapes) or
+  `'single'` quotes, trailing ` # comment` on unquoted values;
+- **precedence:** a variable already present in the environment (CI secret, `$env:` override) is not
+  replaced — so the same suite runs from `.env` locally and from secrets in CI.
+
+`DotEnv.LoadedFrom` / `LoadedKeys` tell which file and keys were applied (values are never logged).
+The Python tools read the same file ([python-tooling.md](python-tooling.md#configuration--openapi-toolsjson)).
 
 `ConfigurationProvider.GetTestConfiguration()` binds it to `TestConfiguration`:
 
