@@ -21,6 +21,9 @@ import json
 import os
 import re
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -105,6 +108,7 @@ class Service:
     default_base_url: str    # local default (e.g. docker-compose port mapping)
     env_var: str             # env var that overrides the base URL
     is_auth_issuer: bool = False  # service that issues JWT tokens
+    auth_client: str = ""    # named OAuth2 client (config "authClients") whose token it gets
 
     @property
     def base_url(self) -> str:
@@ -148,9 +152,65 @@ SERVICES: dict[str, Service] = {
         swagger_path=SWAGGER_DIR / entry["swagger"],
         default_base_url=entry["baseUrl"],
         env_var=entry.get("envVar", f"{entry['key'].upper()}_BASE_URL"),
-        is_auth_issuer=bool(entry.get("authIssuer", False)))
+        is_auth_issuer=bool(entry.get("authIssuer", False)),
+        auth_client=entry.get("authClient", ""))
     for entry in CONFIG.get("services", [])
 }
+
+# Named OAuth2 client-credentials clients — the counterpart of the .NET
+# Authentication:Clients section. Every value can be overridden with the same
+# environment variable the .NET tests read (one .env drives both).
+AUTH_CLIENTS: dict[str, dict] = CONFIG.get("authClients", {})
+
+
+def client_setting(client: str, key: str) -> str:
+    """OAuth2 setting of a named client: TEST_Authentication__Clients__<client>__OAuth2__<Key>,
+    then (TokenUrl, Scope, Audience only) the shared TEST_Authentication__OAuth2__<Key>,
+    then the client's entry in "authClients" (camelCase key)."""
+    value = os.environ.get(f"TEST_Authentication__Clients__{client}__OAuth2__{key}")
+    if value is None and key in ("TokenUrl", "Scope", "Audience"):
+        value = os.environ.get(f"TEST_Authentication__OAuth2__{key}")
+    if value is None:
+        value = AUTH_CLIENTS.get(client, {}).get(key[0].lower() + key[1:], "")
+    if key == "TokenUrl" and value.startswith("/"):
+        issuer = next((s for s in SERVICES.values() if s.is_auth_issuer), None)
+        if issuer is not None:
+            value = issuer.base_url + value  # relative: resolved against the auth issuer
+    return value
+
+
+def fetch_client_token(client: str) -> tuple[str | None, str]:
+    """Client-credentials grant (RFC 6749 4.4) for a named client.
+    Returns (access_token, token_url) or (None, error detail)."""
+    if client not in AUTH_CLIENTS:
+        return None, f"auth client '{client}' is not configured under \"authClients\""
+    token_url = client_setting(client, "TokenUrl")
+    form = {
+        "grant_type": "client_credentials",
+        "client_id": client_setting(client, "ClientId"),
+        "client_secret": client_setting(client, "ClientSecret"),
+    }
+    for key in ("Scope", "Audience"):
+        if value := client_setting(client, key):
+            form[key.lower()] = value
+
+    req = urllib.request.Request(
+        token_url, data=urllib.parse.urlencode(form).encode(), method="POST",
+        headers={"Content-Type": "application/x-www-form-urlencoded",
+                 "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        return None, f"{token_url}: HTTP {exc.code}: {exc.read().decode(errors='replace')[:300]}"
+    except (urllib.error.URLError, OSError) as exc:
+        return None, f"{token_url} unreachable: {exc}"
+    try:
+        token = json.loads(raw).get("access_token")
+    except (json.JSONDecodeError, AttributeError):
+        token = None
+    return (token, token_url) if isinstance(token, str) and token else \
+        (None, f"{token_url}: no access_token in {raw[:300]}")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -171,6 +231,7 @@ class Endpoint:
     request_body_ref: str | None      # original $ref name, e.g. "CreateProductRequest"
     responses: dict[int, dict | None] # status -> resolved response schema (or None)
     requires_auth: bool
+    form_body_schema: dict | None = None  # resolved schema of an x-www-form-urlencoded body
 
     @property
     def success_status(self) -> int | None:
@@ -229,10 +290,10 @@ def extract_endpoints(spec: dict) -> list[Endpoint]:
                 for p in (op.get("parameters") or []) + (path_item.get("parameters") or [])
             ]
 
-            body_schema_raw = (
-                op.get("requestBody", {}).get("content", {})
-                .get("application/json", {}).get("schema")
-            )
+            body_content = op.get("requestBody", {}).get("content", {})
+            body_schema_raw = body_content.get("application/json", {}).get("schema")
+            form_schema_raw = (body_content.get("application/x-www-form-urlencoded", {})
+                               .get("schema"))
 
             responses: dict[int, dict | None] = {}
             for code_str, resp in (op.get("responses") or {}).items():
@@ -256,6 +317,7 @@ def extract_endpoints(spec: dict) -> list[Endpoint]:
                 request_body_ref=ref_name(body_schema_raw),
                 responses=responses,
                 requires_auth=bool(op.get("security")) or global_security,
+                form_body_schema=resolve_schema(spec, form_schema_raw),
             ))
 
     return endpoints
@@ -346,6 +408,16 @@ def example_body(spec: dict, endpoint: Endpoint) -> dict | None:
         return None
     value = example_value(spec, endpoint.request_body_schema)
     return value if isinstance(value, dict) else None
+
+
+def example_form(spec: dict, endpoint: Endpoint) -> dict[str, str] | None:
+    """Example fields of an application/x-www-form-urlencoded body, or None."""
+    if endpoint.form_body_schema is None:
+        return None
+    value = example_value(spec, endpoint.form_body_schema)
+    if not isinstance(value, dict):
+        return None
+    return {k: v if isinstance(v, str) else json.dumps(v) for k, v in value.items()}
 
 
 def example_param_value(spec: dict, param: dict) -> object:

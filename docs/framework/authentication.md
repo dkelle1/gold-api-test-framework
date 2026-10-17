@@ -8,9 +8,11 @@ from one place, decided in this order (the **last** auth-related builder call wi
 | 1 | `.WithoutAuth()` — no auth header at all (neither `Authorization` nor the provider's header) | 401 tests |
 | 2 | `.AsIdentity("name")` — the token stored for that identity in `TokenProvider` | per-request roles / users |
 | 3 | an explicit header: `.WithBearerToken(raw)` or `.WithHeader("Authorization", ...)` | ad-hoc tokens, malformed tokens |
-| 4 | the active **authentication provider** (configured once) | everything else |
+| 4 | `.AsClient("name")` — the provider of another named auth client | cross-group checks |
+| 5 | the **authentication provider** of the service's auth client (`Services:<key>:AuthClient`), else the default one | everything else |
 
 - [Authentication modes (providers)](#authentication-modes)
+- [One identity provider, a client per group of services](#one-identity-provider-a-client-per-group-of-services)
 - [Multiple identities](#multiple-identities)
 - [Per-request control](#per-request-control)
 - [Binding an identity to a step class](#binding-an-identity-to-a-step-class)
@@ -131,6 +133,78 @@ AuthenticationContext.Provider = new DelegateAuthenticationProvider(() => MySess
 
 Returning `null` from a provider means "send no header".
 
+## One identity provider, a client per group of services
+
+Larger systems put many services behind one authorization server and give each group of services
+its own OAuth2 client (own scopes, own audience). Describe the clients once under
+`Authentication:Clients` and point each service at its client:
+
+```jsonc
+"Services": {
+  "OrderService":    { "BaseUrl": "https://orders.test.example.com",   "AuthClient": "Orders" },
+  "ShippingService": { "BaseUrl": "https://shipping.test.example.com", "AuthClient": "Orders" },
+  "ProductService":  { "BaseUrl": "https://products.test.example.com", "AuthClient": "Catalog" },
+  "LegacyService":   { "BaseUrl": "https://legacy.test.example.com",   "AuthClient": "Legacy" },
+  "StatusService":   { "BaseUrl": "https://status.test.example.com" }   // no client: default provider
+},
+"Authentication": {
+  "Mode": "OAuth2ClientCredentials",                                   // shared by all clients...
+  "OAuth2": { "TokenUrl": "https://login.example.com/connect/token" },
+  "Clients": {                                                         // ...each overrides what differs
+    "Orders":  { "OAuth2": { "ClientId": "orders-api-tests",  "Scope": "orders.read orders.write", "Audience": "orders" } },
+    "Catalog": { "OAuth2": { "ClientId": "catalog-api-tests", "Scope": "catalog.read catalog.write" } },
+    "Legacy":  { "Mode": "ApiKey", "HeaderName": "X-Api-Key" }
+  }
+}
+```
+
+```bash
+# .env or CI secrets, one per client
+TEST_Authentication__Clients__Orders__OAuth2__ClientSecret=...
+TEST_Authentication__Clients__Catalog__OAuth2__ClientSecret=...
+TEST_Authentication__Clients__Legacy__ApiKey=...
+```
+
+- A client takes **every** key of the `Authentication` section (Mode, HeaderName, Scheme,
+  OAuth2:TokenUrl, Scope, Audience, RefreshSkewSeconds, CustomProviderType, ...) and overrides what it
+  sets itself. **Credentials are never inherited** (`Token`, `ApiKey`, `OAuth2:ClientId`,
+  `OAuth2:ClientSecret`): a client without its own secret fails at the token endpoint instead of
+  silently authenticating as another client.
+- Services of one group share one provider, so **one token per client** is fetched and cached for the
+  whole run, however many services use it.
+- The service's client applies to `ApiClient.SendAsync(builder)` (steps, `RequestFactory`) — the
+  precedence table above is unchanged: `WithoutAuth`, `AsIdentity` and explicit headers still win.
+- An `AuthClient` that is not configured fails on the first request with the key to add.
+- In code: `AuthenticationContext.For("Orders")` returns a client's provider,
+  `AuthenticationContext.SetClient("Orders", provider)` registers one (e.g. a custom provider
+  instance), `AuthenticationContext.Reset()` drops all of them.
+
+Cross-group checks borrow another client for one request — or a whole step class (see
+[Binding an identity to a step class](#binding-an-identity-to-a-step-class)):
+
+```csharp
+// an Orders token must not be accepted by a Catalog service
+var response = await products.SendAsync(RequestFactory.Get("/api/products").AsClient("Orders"));
+response.ShouldHaveStatusCode(HttpStatusCode.Unauthorized);
+```
+
+The demo shop runs the real thing: AuthService is the shared authorization server
+(`POST /connect/token`, client-credentials grant), ProductService belongs to the **Catalog** group,
+OrderService to the **Orders** group (which may also read the catalog, because OrderService passes
+the caller's token on to ProductService). See rules `R-CLIENT-*` in
+[`domain-rules.md`](../../examples/demo-shop/api-tests/domain-rules.md),
+[`ServiceGroupClientTests`](../../examples/demo-shop/api-tests/DemoShop.Tests/Authorization/ServiceGroupClientTests.cs) and
+[`TokenEndpointTests`](../../examples/demo-shop/api-tests/DemoShop.Tests/AuthService/TokenEndpointTests.cs).
+User identities (`AsIdentity`) keep working next to the clients.
+
+### Organising many services
+
+With dozens of services, the clients follow the **identity provider's** grouping, not the test
+code's: one `Clients` entry per client registered at the IdP, one `AuthClient` line per service.
+Adding a service to an existing group is a single configuration line; a new group is one `Clients`
+entry plus one secret. Keep the `Services`/`Clients` sections in `appsettings.test.json` and the
+per-environment URLs in `appsettings.test.<env>.json` or `.env`.
+
 ## Multiple identities
 
 `TokenProvider` stores tokens by identity name (case-insensitive). The unnamed calls use the
@@ -173,12 +247,16 @@ RequestFactory.Delete("/api/products/42").AsIdentity("admin");
 
 // with a raw or deliberately broken token
 RequestFactory.Get("/api/products").WithBearerToken("not-a-jwt");
+
+// with the credentials of another named auth client
+RequestFactory.Get("/api/orders").AsClient("Catalog");
 ```
 
 ## Binding an identity to a step class
 
-Steps in the example expose `AsIdentity(name)` and `WithToken(raw)`, which return a **copy** of the
-step class whose every request is sent as that identity — the original instance is unchanged:
+Steps in the example expose `AsIdentity(name)`, `WithToken(raw)` and `AsClient(authClient)`, which
+return a **copy** of the step class whose every request is sent as that identity / token / client —
+the original instance is unchanged:
 
 ```csharp
 var asUser  = await _products.AsIdentity("user").DeleteProductAsync(id);    // 403
@@ -195,4 +273,5 @@ and [tutorial chapter 6](../tutorial/06-authentication-and-identities.md).
 - `TokenProvider` and `AuthenticationContext` are static: fixtures that change them
   (like the provider unit tests) must not run in parallel with others.
 - The behaviour above is pinned by the unit tests in
-  `framework/tests/ApiTestFramework.Framework.Tests/AuthenticationProviderTests.cs`.
+  `framework/tests/ApiTestFramework.Framework.Tests/AuthenticationProviderTests.cs` and
+  `AuthClientTests.cs` (named clients against an in-process token endpoint).

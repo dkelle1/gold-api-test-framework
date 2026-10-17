@@ -8,7 +8,11 @@
   },
   "services": [
     { "key": "auth",    "name": "AuthService",    "swagger": "auth-swagger.json",    "baseUrl": "http://localhost:5300", "envVar": "AUTH_BASE_URL", "authIssuer": true },
-    { "key": "product", "name": "ProductService", "swagger": "product-swagger.json", "baseUrl": "http://localhost:5100", "envVar": "PRODUCT_BASE_URL" },
-    { "key": "order",   "name": "OrderService",   "swagger": "order-swagger.json",   "baseUrl": "http://localhost:5200", "envVar": "ORDER_BASE_URL" }
-  ]
+    { "key": "product", "name": "ProductService", "swagger": "product-swagger.json", "baseUrl": "http://localhost:5100", "envVar": "PRODUCT_BASE_URL", "authClient": "Catalog" },
+    { "key": "order",   "name": "OrderService",   "swagger": "order-swagger.json",   "baseUrl": "http://localhost:5200", "envVar": "ORDER_BASE_URL",   "authClient": "Orders" }
+  ],
+  "authClients": {
+    "Catalog": { "tokenUrl": "/connect/token", "clientId": "catalog-api-tests", "clientSecret": "catalog-api-tests-secret", "scope": "catalog.read catalog.write catalog.admin" },
+    "Orders":  { "tokenUrl": "/connect/token", "clientId": "orders-api-tests",  "clientSecret": "orders-api-tests-secret",  "scope": "orders.read orders.write catalog.read" }
+  }
 }

@@ -28,4 +28,5 @@ public static class AuthServiceRoutes
 {
     public const string Register = "/api/auth/register";
     public const string Login = "/api/auth/login";
+    public const string Token = "/connect/token";
 }

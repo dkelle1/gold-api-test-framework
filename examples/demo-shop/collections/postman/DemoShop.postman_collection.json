@@ -124,6 +124,63 @@
               }
             }
           ]
+        },
+        {
+          "name": "POST /connect/token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": {
+              "raw": "{{authBaseUrl}}/connect/token",
+              "host": [
+                "{{authBaseUrl}}"
+              ],
+              "path": [
+                "connect",
+                "token"
+              ],
+              "variable": []
+            },
+            "description": "`POST /connect/token` \u2014 operationId: Token",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "client_credentials",
+                  "type": "text"
+                },
+                {
+                  "key": "client_id",
+                  "value": "catalog-api-tests",
+                  "type": "text"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "catalog-api-tests-secret",
+                  "type": "text"
+                },
+                {
+                  "key": "scope",
+                  "value": "catalog.read",
+                  "type": "text"
+                },
+                {
+                  "key": "audience",
+                  "value": "catalog",
+                  "type": "text"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
         }
       ]
     },

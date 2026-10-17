@@ -52,7 +52,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
+            // user tokens carry the shared audience, machine-client tokens the audience of their
+            // group of services ("Jwt:ClientAudience", e.g. "catalog")
+            ValidAudiences = new[] { builder.Configuration["Jwt:Audience"], builder.Configuration["Jwt:ClientAudience"] }
+                .Where(a => !string.IsNullOrEmpty(a)),
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SecretKey"]!))
         };
@@ -61,7 +64,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization(options =>
 {
     // Destructive operations are restricted to users with the Admin role
-    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+    // and to machine clients granted the "catalog.admin" scope
+    options.AddPolicy("AdminOnly", policy => policy.RequireAssertion(context =>
+        context.User.IsInRole("Admin") || HasScope(context.User, "catalog.admin")));
 });
 
 // EF Core — SQL Server
@@ -189,5 +194,11 @@ app.MapDelete("/api/products/{id:int}", async (int id, IProductRepository repo) 
 .RequireAuthorization("AdminOnly");
 
 app.Run();
+
+// "scope" is space-separated; JwtBearer may map it to the long Microsoft claim type
+static bool HasScope(System.Security.Claims.ClaimsPrincipal user, string scope) =>
+    user.Claims
+        .Where(c => c.Type is "scope" or "http://schemas.microsoft.com/identity/claims/scope")
+        .Any(c => c.Value.Split(' ').Contains(scope));
 
 public partial class Program { }

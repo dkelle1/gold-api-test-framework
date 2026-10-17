@@ -57,6 +57,10 @@ services:
       Jwt__Issuer: "ApiTestFramework.AuthService"
       Jwt__Audience: "ApiTestFramework.Services"
       Jwt__ExpirationMinutes: "60"
+      # Machine clients of the shared authorization server (POST /connect/token);
+      # scopes and audiences: services/AuthService/appsettings.json
+      OAuthClients__0__Secret: "${CATALOG_CLIENT_SECRET:-catalog-api-tests-secret}"
+      OAuthClients__1__Secret: "${ORDERS_CLIENT_SECRET:-orders-api-tests-secret}"
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -84,6 +88,7 @@ services:
       Jwt__SecretKey: "${JWT_SECRET_KEY:-ApiTestFramework_SuperSecretKey_ForDevelopment_2024_MinLength32!}"
       Jwt__Issuer: "ApiTestFramework.AuthService"
       Jwt__Audience: "ApiTestFramework.Services"
+      Jwt__ClientAudience: "catalog"   # machine-client tokens of the Catalog group
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -112,6 +117,7 @@ services:
       Jwt__SecretKey: "${JWT_SECRET_KEY:-ApiTestFramework_SuperSecretKey_ForDevelopment_2024_MinLength32!}"
       Jwt__Issuer: "ApiTestFramework.AuthService"
       Jwt__Audience: "ApiTestFramework.Services"
+      Jwt__ClientAudience: "orders"   # machine-client tokens of the Orders group
     depends_on:
       sqlserver:
         condition: service_healthy

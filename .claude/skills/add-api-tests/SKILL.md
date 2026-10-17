@@ -47,6 +47,8 @@ Create or extend `DemoShop.Tests/<Service>/<Topic>Tests.cs` — see [templates.m
   operations assert that nothing changed. Schema conformance of every response is checked
   automatically (contract validation, Fail mode) — don't re-assert field types by hand.
 - 401: `RequestBuilder...WithoutAuth()`; 403: `steps.AsIdentity(TestIdentities.User)`.
+- Services with an `AuthClient` (demo: ProductService = `Catalog`, OrderService = `Orders`) send that
+  OAuth2 client's token by default; another group's token via `steps.AsClient(AuthClients.X)`.
 - Assertions that hold on a shared database ("contains mine", "only matching") — no global counts.
 
 ## 5. Run and report

@@ -43,8 +43,18 @@ Paths are relative to the config file.
       "authIssuer": true                           // the service whose register/login issues tokens
     },
     { "key": "order", "name": "OrderService", "swagger": "order-swagger.json",
-      "baseUrl": "http://localhost:5200", "envVar": "ORDER_BASE_URL" }
-  ]
+      "baseUrl": "http://localhost:5200", "envVar": "ORDER_BASE_URL",
+      "authClient": "Orders" }                     // optional: called with this client's token
+  ],
+  "authClients": {                                 // optional: OAuth2 client-credentials clients
+    "Orders": {
+      "tokenUrl": "/connect/token",                // relative: resolved against the authIssuer
+      "clientId": "orders-api-tests",
+      "clientSecret": "",                          // prefer TEST_Authentication__Clients__Orders__OAuth2__ClientSecret
+      "scope": "orders.read orders.write",
+      "audience": ""
+    }
+  }
 }
 ```
 
@@ -60,7 +70,12 @@ variables. A service's base URL is taken from its tool variable (`AUTH_BASE_URL`
 the C# suite and the tools at an environment.
 
 The token flow is discovered from the auth issuer's spec (a `register` or `login` operation whose
-response contains a token). Products with a different auth scheme can still use the generators
+response contains a token). Services with an `authClient` get that client's token instead
+(client-credentials grant, one token per client per run) — the counterpart of
+`Services:<key>:AuthClient` in the .NET tests. Every `authClients` value can be overridden with
+the variable the .NET tests read: `TEST_Authentication__Clients__<Client>__OAuth2__<Key>`
+(`TokenUrl`, `ClientId`, `ClientSecret`, `Scope`, `Audience`), and `TokenUrl`/`Scope`/`Audience`
+also with the shared `TEST_Authentication__OAuth2__<Key>`, so one `.env` serves both. Products with a different auth scheme can still use the generators
 and the mock; for k6 replace `obtainToken()` with `__ENV.TOKEN` in the generated script.
 
 ## Postman / Bruno collections — `generate_collections.py`
@@ -75,8 +90,9 @@ Output (committed, deterministic): `<collections>/postman/<collectionName>.postm
 + `Local.postman_environment.json`, and `<collections>/bruno/` (open the folder in Bruno).
 
 Pre-wired: collection-level Bearer auth reading `{{accessToken}}`; register/login requests store the
-JWT automatically (unique usernames per send, so register never 409s); schema-derived bodies;
-path parameters as variables. Import → send `POST /api/auth/register` once → everything else is
+JWT automatically (unique usernames per send, so register never 409s); schema-derived bodies
+(JSON, and `application/x-www-form-urlencoded` such as an OAuth2 token request — filled from the
+schema's `example` values); path parameters as variables. Import → send `POST /api/auth/register` once → everything else is
 authorized.
 
 ## k6 load tests — `generate_k6.py`
@@ -104,7 +120,7 @@ python3 tools/smoke_runner.py --role Admin     # register the smoke user with a 
 python3 tools/smoke_runner.py --no-auth-checks
 ```
 
-Per run it registers a fresh user, executes every endpoint in CRUD order with schema-derived
+Per run it registers a fresh user (and fetches a token per `authClients` entry in use), executes every endpoint in CRUD order with schema-derived
 payloads (chaining created ids into paths and foreign keys), asserts the documented success code,
 **validates every response body against its schema** (types, enums, non-nullable fields) and checks
 that protected GETs return 401 without a token. It takes seconds — in CI it found that the order

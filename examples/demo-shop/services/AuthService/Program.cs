@@ -31,6 +31,7 @@ builder.Services.AddStackExchangeRedisCache(options =>
 
 builder.Services.AddScoped<IUserRepository, SqlUserRepository>();
 builder.Services.AddScoped<IAuthService, JwtAuthService>();
+builder.Services.AddSingleton<ClientCredentialsIssuer>();
 
 var app = builder.Build();
 
@@ -95,6 +96,30 @@ app.MapPost("/api/auth/login", async (LoginRequest request, IAuthService authSer
 .Produces<AuthResponse>(StatusCodes.Status200OK)
 .Produces(StatusCodes.Status400BadRequest)
 .Produces(StatusCodes.Status401Unauthorized);
+
+// POST token — OAuth2 client-credentials grant for machine clients (shared authorization server)
+app.MapPost("/connect/token", async (HttpRequest request, ClientCredentialsIssuer issuer) =>
+{
+    if (!request.HasFormContentType)
+        return Results.Json(new OAuthError
+        {
+            Error = "invalid_request",
+            ErrorDescription = "Expected application/x-www-form-urlencoded"
+        }, statusCode: StatusCodes.Status400BadRequest);
+
+    var form = await request.ReadFormAsync();
+    var (token, error, status) = issuer.Issue(form, request.Headers.Authorization.FirstOrDefault());
+    request.HttpContext.Response.Headers.CacheControl = "no-store";
+    return token is not null
+        ? Results.Ok(token)
+        : Results.Json(error, statusCode: status);
+})
+.WithName("Token")
+.WithTags("OAuth2")
+.Accepts<TokenRequest>("application/x-www-form-urlencoded")
+.Produces<TokenResponse>(StatusCodes.Status200OK)
+.Produces<OAuthError>(StatusCodes.Status400BadRequest)
+.Produces<OAuthError>(StatusCodes.Status401Unauthorized);
 
 app.Run();
 

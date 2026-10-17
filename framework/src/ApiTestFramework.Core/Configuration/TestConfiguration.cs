@@ -4,6 +4,13 @@ public class ServiceConfig
 {
     public string Name { get; set; } = string.Empty;
     public string BaseUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Named auth client (<c>Authentication:Clients:&lt;AuthClient&gt;</c>) used for this service's
+    /// requests. Empty: the default <c>Authentication</c> settings. Services sharing a client
+    /// share its provider, and with it its cached token.
+    /// </summary>
+    public string AuthClient { get; set; } = string.Empty;
 }
 
 /// <summary>

@@ -33,7 +33,11 @@ public class ApiClientModule : Module
         if (string.IsNullOrEmpty(service.BaseUrl)) return;
 
         var name = string.IsNullOrEmpty(service.Name) ? key : service.Name;
-        builder.Register(c => new ApiClient(service.BaseUrl, name, timeoutSeconds) { RetryCount = retryCount })
+        builder.Register(c => new ApiClient(service.BaseUrl, name, timeoutSeconds)
+            {
+                RetryCount = retryCount,
+                AuthClient = string.IsNullOrEmpty(service.AuthClient) ? null : service.AuthClient,
+            })
             .Named<ApiClient>(key)
             .SingleInstance();
     }

@@ -28,6 +28,13 @@ public class ApiClient : IDisposable
     /// </summary>
     public int RetryCount { get; init; }
 
+    /// <summary>
+    /// Named auth client whose credentials <see cref="SendAsync(RequestBuilder)"/> attaches
+    /// (see <c>AuthenticationContext.For</c>). Null: the default provider.
+    /// Set via <c>Services:&lt;key&gt;:AuthClient</c>.
+    /// </summary>
+    public string? AuthClient { get; init; }
+
     public ApiClient(string baseUrl, string serviceName, int timeoutSeconds = 30)
     {
         _baseUrl = baseUrl.TrimEnd('/');
@@ -89,13 +96,13 @@ public class ApiClient : IDisposable
     /// Convenience: send a request built with RequestBuilder.
     /// </summary>
     public Task<RestResponse> SendAsync(RequestBuilder builder)
-        => ExecuteAsync(builder.Build());
+        => ExecuteAsync(builder.Build(AuthClient));
 
     /// <summary>
     /// Convenience: send a request built with RequestBuilder with typed response.
     /// </summary>
     public Task<RestResponse<T>> SendAsync<T>(RequestBuilder builder)
-        => ExecuteAsync<T>(builder.Build());
+        => ExecuteAsync<T>(builder.Build(AuthClient));
 
     private void ValidateResponse(RestRequest request, RestResponse response)
         => ResponseValidators.Run(new ResponseValidationContext(

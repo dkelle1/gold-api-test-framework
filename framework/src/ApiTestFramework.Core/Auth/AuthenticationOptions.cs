@@ -6,6 +6,11 @@ namespace ApiTestFramework.Core.Auth;
 /// by the framework. All values can be overridden via environment variables
 /// (TEST_Authentication__Token, TEST_Authentication__OAuth2__ClientSecret, ...)
 /// so secrets never need to live in the repository.
+/// <para>
+/// Named clients live under <c>Authentication:Clients:&lt;name&gt;</c> with the same keys and
+/// inherit everything except credentials from this section; a service selects one with
+/// <c>Services:&lt;key&gt;:AuthClient</c> (see <c>AuthenticationProviderFactory.BindClientOptions</c>).
+/// </para>
 /// </summary>
 public class AuthenticationOptions
 {

@@ -53,7 +53,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
+            // user tokens carry the shared audience, machine-client tokens the audience of their
+            // group of services ("Jwt:ClientAudience", e.g. "orders")
+            ValidAudiences = new[] { builder.Configuration["Jwt:Audience"], builder.Configuration["Jwt:ClientAudience"] }
+                .Where(a => !string.IsNullOrEmpty(a)),
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SecretKey"]!))
         };

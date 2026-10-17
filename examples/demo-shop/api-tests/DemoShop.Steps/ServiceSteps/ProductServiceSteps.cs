@@ -15,7 +15,7 @@ namespace DemoShop.Steps.ServiceSteps;
 /// Step class for ProductService operations.
 /// Used to prepare test data (e.g., creating products needed by OrderService tests).
 /// By default requests use the global token; bind a different identity per instance
-/// via AsIdentity(name) or WithToken(token).
+/// via AsIdentity(name), WithToken(token) or AsClient(authClient).
 /// </summary>
 public class ProductServiceSteps
 {
@@ -23,17 +23,19 @@ public class ProductServiceSteps
     private readonly ILogger _logger;
     private readonly string? _identity;
     private readonly string? _bearerToken;
+    private readonly string? _authClient;
 
     public ProductServiceSteps() : this(identity: null, bearerToken: null)
     {
     }
 
-    private ProductServiceSteps(string? identity, string? bearerToken)
+    private ProductServiceSteps(string? identity, string? bearerToken, string? authClient = null)
     {
         _client = ContainerProvider.ResolveNamed<ApiClient>("ProductService");
         _logger = Log.ForContext<ProductServiceSteps>();
         _identity = identity;
         _bearerToken = bearerToken;
+        _authClient = authClient;
     }
 
     /// <summary>
@@ -48,12 +50,20 @@ public class ProductServiceSteps
     public ProductServiceSteps WithToken(string bearerToken) => new(identity: null, bearerToken: bearerToken);
 
     /// <summary>
+    /// Returns a copy of these steps that authenticates with another named auth client
+    /// (Authentication:Clients) instead of the service's own one, e.g. to verify that a
+    /// token issued for another group of services is rejected.
+    /// </summary>
+    public ProductServiceSteps AsClient(string authClient) => new(identity: null, bearerToken: null, authClient);
+
+    /// <summary>
     /// Applies the bound identity/token (if any) to a request builder.
     /// Without a binding the request falls back to the default auto-injected token.
     /// </summary>
     private RequestBuilder Authorized(RequestBuilder builder) =>
         _bearerToken != null ? builder.WithBearerToken(_bearerToken)
         : _identity != null ? builder.AsIdentity(_identity)
+        : _authClient != null ? builder.AsClient(_authClient)
         : builder;
 
     /// <summary>

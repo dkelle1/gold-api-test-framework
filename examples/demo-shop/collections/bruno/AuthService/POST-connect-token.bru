@@ -1,0 +1,19 @@
+meta {
+  name: POST /connect/token
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{authBaseUrl}}/connect/token
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  grant_type: client_credentials
+  client_id: catalog-api-tests
+  client_secret: catalog-api-tests-secret
+  scope: catalog.read
+  audience: catalog
+}

@@ -52,7 +52,9 @@ key) go into `DemoShop.Steps/Builders/Custom/<Schema>Builder.cs` partials.
 
 Create `DemoShop.Steps/ServiceSteps/<Service>Steps.cs` by copying the structure of
 `ProductServiceSteps` (named client via `ContainerProvider.ResolveNamed<ApiClient>("<Service>")`,
-`AsIdentity`/`WithToken` copies, private `Authorized(...)`), then one step per operation.
+`AsIdentity`/`WithToken`/`AsClient` copies, private `Authorized(...)`), then one step per operation.
+Behind a shared identity provider, add `"AuthClient": "<Group>"` to the service's `Services` entry
+(and the client under `Authentication:Clients` if the group is new; its secret only in `.env`/CI).
 If creating its resources needs another service, use that service's steps (see `OrderServiceSteps`).
 
 ## 6. First tests and checks

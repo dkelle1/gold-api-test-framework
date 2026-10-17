@@ -57,6 +57,34 @@
           "401": { "description": "Unauthorized" }
         }
       }
+    },
+    "/connect/token": {
+      "post": {
+        "tags": [ "OAuth2" ],
+        "summary": "OAuth2 client-credentials grant (RFC 6749 section 4.4) for machine clients",
+        "description": "Client authentication with client_id/client_secret form fields or HTTP Basic. Tokens carry the client's audiences (aud) and the granted scopes (scope).",
+        "operationId": "Token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": { "$ref": "#/components/schemas/TokenRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TokenResponse" }
+              }
+            }
+          },
+          "400": { "description": "Bad Request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OAuthError" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OAuthError" } } } }
+        }
+      }
     }
   },
   "components": {
@@ -107,6 +135,36 @@
           "username": { "type": "string" },
           "email": { "type": "string" },
           "role": { "type": "string" }
+        }
+      },
+      "TokenRequest": {
+        "type": "object",
+        "required": [ "grant_type" ],
+        "properties": {
+          "grant_type": { "type": "string", "enum": [ "client_credentials" ] },
+          "client_id": { "type": "string", "example": "catalog-api-tests" },
+          "client_secret": { "type": "string", "example": "catalog-api-tests-secret" },
+          "scope": { "type": "string", "description": "Space-separated subset of the client's scopes; all of them when omitted", "example": "catalog.read" },
+          "audience": { "type": "string", "description": "One of the client's audiences; all of them when omitted", "example": "catalog" }
+        }
+      },
+      "TokenResponse": {
+        "type": "object",
+        "required": [ "access_token", "token_type", "expires_in", "scope" ],
+        "properties": {
+          "access_token": { "type": "string" },
+          "token_type": { "type": "string", "enum": [ "Bearer" ] },
+          "expires_in": { "type": "integer", "format": "int32" },
+          "scope": { "type": "string" }
+        }
+      },
+      "OAuthError": {
+        "type": "object",
+        "description": "RFC 6749 section 5.2 error body",
+        "required": [ "error", "error_description" ],
+        "properties": {
+          "error": { "type": "string", "enum": [ "invalid_request", "invalid_client", "unsupported_grant_type", "invalid_scope", "invalid_target" ] },
+          "error_description": { "type": "string" }
         }
       }
     }

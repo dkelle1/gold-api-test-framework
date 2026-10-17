@@ -19,6 +19,7 @@ public class RequestBuilder
     private string? _contentType;
     private int? _timeoutSeconds;
     private string? _identity;
+    private string? _authClient;
     private bool _suppressAuth;
     private bool _skipResponseValidation;
 
@@ -86,6 +87,7 @@ public class RequestBuilder
         if (name.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
         {
             _identity = null;
+            _authClient = null;
             _suppressAuth = false;
         }
         return this;
@@ -110,6 +112,7 @@ public class RequestBuilder
     {
         _headers["Authorization"] = $"Bearer {token}";
         _identity = null;
+        _authClient = null;
         _suppressAuth = false;
         return this;
     }
@@ -122,6 +125,23 @@ public class RequestBuilder
     public RequestBuilder AsIdentity(string identity)
     {
         _identity = identity;
+        _authClient = null;
+        _headers.Remove("Authorization");
+        _suppressAuth = false;
+        return this;
+    }
+
+    /// <summary>
+    /// Authenticates the request with the named auth client
+    /// (<c>Authentication:Clients:&lt;client&gt;</c>) instead of the service's own one, e.g. to
+    /// check that a token issued for another group of services is rejected.
+    /// The last auth-related call wins.
+    /// </summary>
+    public RequestBuilder AsClient(string client)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(client);
+        _authClient = client;
+        _identity = null;
         _headers.Remove("Authorization");
         _suppressAuth = false;
         return this;
@@ -135,6 +155,7 @@ public class RequestBuilder
     {
         _suppressAuth = true;
         _identity = null;
+        _authClient = null;
         _headers.Remove("Authorization");
         return this;
     }
@@ -179,29 +200,41 @@ public class RequestBuilder
     }
 
     /// <summary>
+    /// Builds the RestRequest with the default authentication provider.
+    /// <see cref="ApiClient.SendAsync(RequestBuilder)"/> calls <see cref="Build(string?)"/>
+    /// with the service's auth client instead.
+    /// </summary>
+    public RestRequest Build() => Build(defaultAuthClient: null);
+
+    /// <summary>
     /// Builds the RestRequest from the configured parameters.
     /// Auth resolution order: WithoutAuth() sends no authentication header at all;
     /// AsIdentity() uses the named token from TokenProvider; an explicitly set
-    /// header is kept as-is; otherwise the header produced by the active
-    /// <see cref="AuthenticationContext.Provider"/> (Bearer token, API key,
-    /// OAuth2, ... depending on configuration) is auto-injected.
+    /// header is kept as-is; otherwise the header produced by the provider of
+    /// AsClient()'s client, else of <paramref name="defaultAuthClient"/>, else the default
+    /// <see cref="AuthenticationContext.Provider"/> (Bearer token, API key, OAuth2, ...
+    /// depending on configuration) is auto-injected.
     /// </summary>
-    public RestRequest Build()
+    public RestRequest Build(string? defaultAuthClient)
     {
-        var authHeader = AuthenticationContext.Provider.GetAuthenticationHeader();
-        if (_suppressAuth)
-        {
-            _headers.Remove("Authorization");
-            if (authHeader is not null)
-                _headers.Remove(authHeader.Name);
-        }
-        else if (_identity != null)
+        if (_identity != null)
         {
             _headers["Authorization"] = $"Bearer {TokenProvider.GetRequiredToken(_identity)}";
         }
-        else if (authHeader is not null && !_headers.ContainsKey(authHeader.Name))
+        else
         {
-            _headers[authHeader.Name] = authHeader.Value;
+            var authHeader = AuthenticationContext.For(_authClient ?? defaultAuthClient)
+                .GetAuthenticationHeader();
+            if (_suppressAuth)
+            {
+                _headers.Remove("Authorization");
+                if (authHeader is not null)
+                    _headers.Remove(authHeader.Name);
+            }
+            else if (authHeader is not null && !_headers.ContainsKey(authHeader.Name))
+            {
+                _headers[authHeader.Name] = authHeader.Value;
+            }
         }
 
         var resource = _resource;
