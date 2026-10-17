@@ -60,8 +60,7 @@ public static class AllureRequestLogger
         if (bodyParam != null)
         {
             sb.AppendLine("Body:");
-            var bodyContent = bodyParam.Value?.ToString() ?? "(null)";
-            sb.AppendLine(TryPrettyPrintJson(bodyContent));
+            sb.AppendLine(TryPrettyPrintJson(FormatBody(bodyParam.Value)));
         }
 
         TryAddAttachment(
@@ -70,6 +69,20 @@ public static class AllureRequestLogger
             Encoding.UTF8.GetBytes(sb.ToString()),
             ".txt");
     }
+
+    /// <summary>
+    /// Request body as text: strings as-is, objects (AddJsonBody) serialized the way RestSharp
+    /// sends them (camelCase JSON) — not their type name.
+    /// </summary>
+    internal static string FormatBody(object? value) => value switch
+    {
+        null => "(null)",
+        string text => text,
+        _ => System.Text.Json.JsonSerializer.Serialize(value, WebJson)
+    };
+
+    private static readonly System.Text.Json.JsonSerializerOptions WebJson =
+        new(System.Text.Json.JsonSerializerDefaults.Web);
 
     /// <summary>
     /// Logs full response details as an Allure attachment.

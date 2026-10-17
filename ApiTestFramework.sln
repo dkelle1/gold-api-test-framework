@@ -33,6 +33,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProductService", "examples\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrderService", "examples\demo-shop\services\OrderService\OrderService.csproj", "{7C2AF4DF-5A66-46CA-95D2-74A1F88D0653}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApiTestFramework.Contracts", "framework\src\ApiTestFramework.Contracts\ApiTestFramework.Contracts.csproj", "{35EB92B5-CE1F-41B8-88FE-CC7F28E8258E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -163,6 +165,18 @@ Global
 		{7C2AF4DF-5A66-46CA-95D2-74A1F88D0653}.Release|x64.Build.0 = Release|Any CPU
 		{7C2AF4DF-5A66-46CA-95D2-74A1F88D0653}.Release|x86.ActiveCfg = Release|Any CPU
 		{7C2AF4DF-5A66-46CA-95D2-74A1F88D0653}.Release|x86.Build.0 = Release|Any CPU
+		{35EB92B5-CE1F-41B8-88FE-CC7F28E8258E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{35EB92B5-CE1F-41B8-88FE-CC7F28E8258E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{35EB92B5-CE1F-41B8-88FE-CC7F28E8258E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{35EB92B5-CE1F-41B8-88FE-CC7F28E8258E}.Debug|x64.Build.0 = Debug|Any CPU
+		{35EB92B5-CE1F-41B8-88FE-CC7F28E8258E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{35EB92B5-CE1F-41B8-88FE-CC7F28E8258E}.Debug|x86.Build.0 = Debug|Any CPU
+		{35EB92B5-CE1F-41B8-88FE-CC7F28E8258E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{35EB92B5-CE1F-41B8-88FE-CC7F28E8258E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{35EB92B5-CE1F-41B8-88FE-CC7F28E8258E}.Release|x64.ActiveCfg = Release|Any CPU
+		{35EB92B5-CE1F-41B8-88FE-CC7F28E8258E}.Release|x64.Build.0 = Release|Any CPU
+		{35EB92B5-CE1F-41B8-88FE-CC7F28E8258E}.Release|x86.ActiveCfg = Release|Any CPU
+		{35EB92B5-CE1F-41B8-88FE-CC7F28E8258E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -181,5 +195,6 @@ Global
 		{43B66342-A820-48AE-A329-953D19FC1813} = {A5F52E8E-E99C-96C1-9916-EC7A9D933C62}
 		{40AEE255-7EF1-4F5B-BF9C-0B447498C71F} = {A5F52E8E-E99C-96C1-9916-EC7A9D933C62}
 		{7C2AF4DF-5A66-46CA-95D2-74A1F88D0653} = {A5F52E8E-E99C-96C1-9916-EC7A9D933C62}
+		{35EB92B5-CE1F-41B8-88FE-CC7F28E8258E} = {9A0CCAB9-4303-13B4-2371-F1B97FF5B728}
 	EndGlobalSection
 EndGlobal

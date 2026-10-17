@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    OpenAPI contract validation for API tests: checks every ApiClient response (status code
+    documented, body matches the documented schema) and reports contract coverage.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ApiTestFramework.Contracts</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ApiTestFramework.Core\ApiTestFramework.Core.csproj" />
+    <ProjectReference Include="..\ApiTestFramework.OpenApi\ApiTestFramework.OpenApi.csproj" />
+  </ItemGroup>
+
+</Project>

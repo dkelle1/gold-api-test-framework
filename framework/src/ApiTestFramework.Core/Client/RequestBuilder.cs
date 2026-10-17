@@ -20,6 +20,7 @@ public class RequestBuilder
     private int? _timeoutSeconds;
     private string? _identity;
     private bool _suppressAuth;
+    private bool _skipResponseValidation;
 
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
 
@@ -159,6 +160,16 @@ public class RequestBuilder
     }
 
     /// <summary>
+    /// Skips the registered response validators (e.g. contract validation) for this request —
+    /// for requests that deliberately provoke undocumented behaviour.
+    /// </summary>
+    public RequestBuilder WithoutResponseValidation()
+    {
+        _skipResponseValidation = true;
+        return this;
+    }
+
+    /// <summary>
     /// Sets a custom timeout for the request.
     /// </summary>
     public RequestBuilder WithTimeout(int seconds)
@@ -201,7 +212,10 @@ public class RequestBuilder
             resource = resource.Replace($"{{{segment.Key}}}", segment.Value);
         }
 
-        var request = new RestRequest(resource, _method);
+        var request = new TemplatedRestRequest(resource, _method, _resource)
+        {
+            SkipResponseValidation = _skipResponseValidation
+        };
 
         // Add query parameters
         foreach (var param in _queryParameters)

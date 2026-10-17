@@ -7,7 +7,8 @@ namespace ApiTestFramework.Core.Client;
 /// <summary>
 /// Generic API client wrapping RestSharp. Each service gets its own instance
 /// configured with a base URL. Provides typed and untyped Execute methods.
-/// Every request/response is automatically attached to the current Allure step.
+/// Every request/response is automatically attached to the current Allure step and checked
+/// by the registered <see cref="ResponseValidators"/> (e.g. OpenAPI contract validation).
 /// Transient failures are retried up to <see cref="RetryCount"/> times with
 /// exponential back-off (200 ms × 2^(attempt-1)) — see <see cref="ShouldRetry"/>.
 /// </summary>
@@ -58,6 +59,7 @@ public class ApiClient : IDisposable
             _serviceName, (int)response.StatusCode, response.Content?.Length ?? 0);
 
         AllureRequestLogger.AttachResponse(response, _serviceName);
+        ValidateResponse(request, response);
 
         return response;
     }
@@ -78,6 +80,7 @@ public class ApiClient : IDisposable
             _serviceName, (int)response.StatusCode, response.Content?.Length ?? 0);
 
         AllureRequestLogger.AttachResponse(response, _serviceName);
+        ValidateResponse(request, response);
 
         return response;
     }
@@ -93,6 +96,10 @@ public class ApiClient : IDisposable
     /// </summary>
     public Task<RestResponse<T>> SendAsync<T>(RequestBuilder builder)
         => ExecuteAsync<T>(builder.Build());
+
+    private void ValidateResponse(RestRequest request, RestResponse response)
+        => ResponseValidators.Run(new ResponseValidationContext(
+            _serviceName, request, (request as TemplatedRestRequest)?.PathTemplate, response));
 
     private async Task<TResponse> ExecuteWithRetryAsync<TResponse>(
         RestRequest request, Func<Task<TResponse>> send) where TResponse : RestResponse
