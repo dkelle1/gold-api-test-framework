@@ -233,12 +233,16 @@
         }
       },
       "OrderStatus": {
-        "enum": [ "Pending", "Confirmed", "Shipped", "Delivered", "Cancelled" ],
-        "type": "string"
+        "enum": [ 0, 1, 2, 3, 4 ],
+        "type": "integer",
+        "format": "int32",
+        "x-enumNames": [ "Pending", "Confirmed", "Shipped", "Delivered", "Cancelled" ]
       },
       "ShippingMethod": {
-        "enum": [ "Standard", "Express", "Pickup" ],
-        "type": "string"
+        "enum": [ 0, 1, 2 ],
+        "type": "integer",
+        "format": "int32",
+        "x-enumNames": [ "Standard", "Express", "Pickup" ]
       },
       "CreateOrderRequest": {
         "type": "object",

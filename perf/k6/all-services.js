@@ -110,7 +110,7 @@ export default function (data) {
         }
       ],
       "shipping": {
-        "method": "Standard",
+        "method": 0,
         "address": {
           "street": "sample-string",
           "city": "sample-string",
@@ -129,7 +129,7 @@ export default function (data) {
     check(res, { "GET /api/orders/{id} \u2192 200": (r) => r.status === 200 }) || errorRate.add(1);
     res = http.get(`${ORDER_BASE_URL}/api/orders/customer/${createPayload.customer.email}`, params);
     check(res, { "GET /api/orders/customer/{email} \u2192 200": (r) => r.status === 200 }) || errorRate.add(1);
-    res = http.put(`${ORDER_BASE_URL}/api/orders/${orderId}`, JSON.stringify({"status": "Pending", "customer": {"name": "Sample Name", "email": "qa.tester@example.com", "address": {"street": "sample-string", "city": "sample-string", "postalCode": "sample-string", "country": "sample-string"}}, "shipping": {"method": "Standard", "address": {"street": "sample-string", "city": "sample-string", "postalCode": "sample-string", "country": "sample-string"}, "notes": "sample-string"}}), params);
+    res = http.put(`${ORDER_BASE_URL}/api/orders/${orderId}`, JSON.stringify({"status": 0, "customer": {"name": "Sample Name", "email": "qa.tester@example.com", "address": {"street": "sample-string", "city": "sample-string", "postalCode": "sample-string", "country": "sample-string"}}, "shipping": {"method": 0, "address": {"street": "sample-string", "city": "sample-string", "postalCode": "sample-string", "country": "sample-string"}, "notes": "sample-string"}}), params);
     check(res, { "PUT /api/orders/{id} \u2192 200": (r) => r.status === 200 }) || errorRate.add(1);
     res = http.del(`${ORDER_BASE_URL}/api/orders/${orderId}`, null, params);
     check(res, { "DELETE /api/orders/{id} \u2192 204": (r) => r.status === 204 }) || errorRate.add(1);

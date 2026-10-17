@@ -21,9 +21,8 @@ public class AuthCrudTests : BaseTest
 {
     private AuthServiceSteps _authSteps = null!;
 
-    public override void OneTimeSetUp()
+    protected override void OnFixtureSetUp()
     {
-        base.OneTimeSetUp();
         _authSteps = new AuthServiceSteps();
     }
 

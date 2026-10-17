@@ -1,5 +1,7 @@
 # API Test Framework
 
+[![Tests](https://github.com/dkelle1/gold-api-test-framework/actions/workflows/tests.yml/badge.svg?branch=develop)](https://github.com/dkelle1/gold-api-test-framework/actions/workflows/tests.yml)
+
 Complete solution with three .NET 8 microservices and a generic API test framework with pluggable authentication.
 
 > **Reusing this framework for another product/company?** See
@@ -25,7 +27,7 @@ mock server, diagnostics), not a test layer.
 - **ApiTestFramework.Steps** — Step classes per service, generated fluent test-data builders (+ partial customizations), Bogus data generators
 - **ApiTestFramework.OpenApi** — OpenAPI spec loader, schema extractor, builder & test-case scaffolders
 - **ApiTestFramework.Generator.Cli** — console tool that regenerates builders and test scaffolds from swagger
-- **ApiTestFramework.Tests** — NUnit test fixtures (49 tests)
+- **ApiTestFramework.Tests** — NUnit test fixtures (51 tests)
 
 ## Tech Stack
 | Component | Technology |
@@ -126,6 +128,20 @@ dotnet test tests/ApiTestFramework.Tests
 allure serve TestResults/allure-results
 ```
 
+### 6. Run everything in GitHub Actions
+The [`Tests`](.github/workflows/tests.yml) workflow runs automatically on every pull request
+and push to `develop`, and on demand: **Actions → Tests → Run workflow** (optionally with an
+NUnit filter such as `FullyQualifiedName~OrderService`).
+
+| Job | What runs |
+|-----|-----------|
+| **Build & unit tests** | `dotnet build`, `Category=Unit` tests, Python smoke runner against the in-memory mock |
+| **All tests** | `docker compose up --wait` (SQL Server, Redis, 3 services) → the whole NUnit suite → Python smoke & contract checks against the live stack |
+
+Each run publishes a summary on the run page and uploads artifacts: TRX results, raw Allure
+results, a generated **Allure HTML report** (`allure-report/index.html`), smoke reports and
+the service logs.
+
 ## Project Structure
 ```
 ├── src/
@@ -141,7 +157,7 @@ allure serve TestResults/allure-results
 │   │       └── Custom/                 # hand-written partial halves (survive regeneration)
 │   ├── ApiTestFramework.OpenApi/       # OpenAPI loader, SchemaExtractor, BuilderScaffolder, TestCaseScaffolder
 │   ├── ApiTestFramework.Generator.Cli/ # dotnet run → regenerates builders + test scaffolds
-│   └── ApiTestFramework.Tests/         # NUnit test fixtures (Auth, Product, Order, Framework — 49 tests)
+│   └── ApiTestFramework.Tests/         # NUnit test fixtures (Auth, Product, Order, Framework — 51 tests)
 │       └── Generated/                  # *.cs.txt test scaffolds (promote to .cs by hand)
 ├── tools/                              # Generic OpenAPI-driven Python tooling (see tools/README.md)
 │   ├── openapi_common.py               #   shared lib: service registry, spec parsing, payload generation
@@ -267,6 +283,28 @@ override per environment with `TEST_RetryCount=2`):
 ### Allure Reporting
 Every request/response is automatically attached to the Allure report. On assertion failures, detailed failure info including the response body is logged. DTO comparison results (expected vs actual) are attached for full visibility.
 
+### Test Lifecycle (`BaseTest`)
+```csharp
+public class MyTests : BaseTest
+{
+    private ProductServiceSteps _steps = null!;
+
+    // Fixture setup goes into the OnFixtureSetUp hook (not a custom [OneTimeSetUp]).
+    // If it throws, every test is reported as failed in Allure with the root cause —
+    // a throwing [OneTimeSetUp] would make the tests disappear from the report.
+    protected override void OnFixtureSetUp() => _steps = new ProductServiceSteps();
+
+    [Test]
+    public async Task Scenario()
+    {
+        var product = await _steps.CreateProductAsync();
+        // Runs in TearDown whatever the test outcome; LIFO order, failures are logged and ignored
+        RegisterCleanup(() => _steps.AsIdentity("admin").DeleteProductAsync(product.Id));
+        // ...
+    }
+}
+```
+
 ### Steps Usage
 ```csharp
 // AuthServiceSteps — get a token
@@ -332,7 +370,7 @@ What gets regenerated where:
 | DTO clients | `Clients/Dtos` (NSwag) | swagger | no — regenerate |
 | Builders | `Steps/Builders/<Service>/Generated/*.g.cs` | swagger request schemas | no — regenerate |
 | Builder customizations | `Steps/Builders/Custom/*.cs` | hand-written | yes (partial classes) |
-| Test scaffolds | `Tests/Generated/*.cs.txt` | swagger endpoints | promote to `.cs` by hand |
+| Test scaffolds | `Tests/Generated/*.cs.txt` | documented response codes per endpoint (verb-specific scenarios: success, 400, 401, 403, 404, 409, ...) | promote to `.cs` by hand |
 
 The generator (`ApiTestFramework.Generator.Cli`) walks each swagger file, takes the
 transitive closure of schemas reachable from request bodies (nested objects, arrays,
@@ -359,7 +397,7 @@ response.ShouldMatchDtoExcluding(expectedProduct,
 | AuthService | 7 | Register, login, duplicate user, wrong password, unauthorized access |
 | ProductService | 11 | Create, get, get all, update, delete (valid & invalid scenarios) + role-based authorization (admin vs user vs anonymous) |
 | OrderService | 11 | Create (single/multi-item, nested address+shipping, invalid product, empty items), get, get all, update (nested customer), delete, full lifecycle |
-| Framework | 20 | Unit tests for the pluggable authentication layer (providers, factory, RequestBuilder injection, WithoutAuth/AsIdentity precedence) and the ApiClient retry policy — run without live services |
+| Framework | 22 | Unit tests for the pluggable authentication layer (providers, factory, RequestBuilder injection, WithoutAuth/AsIdentity precedence), BaseTest cleanup and the ApiClient retry policy — run without live services |
 
 ## License
 
