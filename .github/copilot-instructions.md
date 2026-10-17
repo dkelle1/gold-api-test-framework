@@ -1,225 +1,128 @@
-# GitHub Copilot Instructions — API Test Framework
+# Copilot / AI assistant instructions — API Test Framework
 
-## Architecture Overview
+## What this repository is
 
-This solution contains **3 .NET 8 microservices** and a **test automation framework**.
-
-### Microservices (`src/`)
-
-| Service       | Port | Database          | Purpose                                            |
-|---------------|------|-------------------|----------------------------------------------------|
-| AuthService   | 5300 | `AuthServiceDb`   | User registration, JWT tokens (with role claim)    |
-| ProductService| 5100 | `ProductServiceDb`| Product CRUD, JWT-protected, DELETE = `Admin` role |
-| OrderService  | 5200 | `OrderServiceDb`  | Order CRUD, cross-calls Product                    |
-
-**Infrastructure**: SQL Server (EF Core, `EnsureCreated`) + Redis (distributed cache via `IDistributedCache`).
-
-**Connection strings** are in `appsettings.json` for each service:
-```json
-"ConnectionStrings": { "DefaultConnection": "Server=localhost;Database=...Db;Trusted_Connection=True;TrustServerCertificate=True" },
-"Redis": { "ConnectionString": "localhost:6379" }
-```
-
-### Nested DTO Pattern
-
-All API responses use **nested DTOs** (not flat models). The EF entity stays in `Models/`, the response DTO adds structure:
-
-**ProductService** returns `ProductResponse`:
-```csharp
-ProductResponse { Id, Name, Description, Price (PriceInfo), Inventory (InventoryInfo), Category, IsActive, Audit (AuditInfo) }
-PriceInfo       { Amount, Currency }
-InventoryInfo   { StockQuantity, InStock }
-AuditInfo       { CreatedAt, UpdatedAt? }
-```
-
-**OrderService** returns `OrderResponse` (multi-item aggregate):
-```csharp
-OrderResponse { Id, Customer (CustomerInfo), Items (List<OrderItemInfo>), Shipping (ShippingInfo), TotalPrice, Status, Audit (AuditInfo) }
-CustomerInfo  { Name, Email, Address (AddressInfo?) }
-OrderItemInfo { ProductId, ProductName, UnitPrice, Quantity, LineTotal }
-ShippingInfo  { Method, Address (AddressInfo?), Notes? }
-AddressInfo   { Street, City, PostalCode, Country }
-```
-
-**AuthService** returns `AuthResponse`:
-```csharp
-AuthResponse { Token (TokenInfo), User (UserProfile) }
-TokenInfo    { AccessToken, TokenType, ExpiresAt, ExpiresInSeconds }
-UserProfile  { Username, Email, Role }
-```
-
-Auth/Product request DTOs (body) remain **flat** (`CreateProductRequest`, `RegisterRequest`).
-OrderService requests are **nested** — one request carries several DTO levels:
-```csharp
-CreateOrderRequest { Customer (CustomerRequest), Items (List<OrderItemRequest>), Shipping (ShippingRequest?) }
-CustomerRequest    { Name, Email, Address (AddressRequest?) }
-OrderItemRequest   { ProductId, Quantity }
-ShippingRequest    { Method, Address (AddressRequest?), Notes? }   // Address falls back to customer address
-UpdateOrderRequest { Status?, Customer?, Shipping? }
-```
-Test data for requests is created via **generated fluent builders** in
-`ApiTestFramework.Steps/Builders/<Service>/Generated/*.g.cs` (regenerate: `scripts/regenerate-all.ps1`);
-hand-written customizations live in `Builders/Custom/*.cs` partial classes.
-
----
-
-## Test Framework (`tests/`)
-
-### Project Structure
+A **product-agnostic .NET 8 API test framework** plus an **example product** that uses it.
+Full documentation: `docs/README.md` (architecture, A-to-Z tutorial, reference).
 
 ```
-ApiTestFramework.Core    — infrastructure (ApiClient, RequestBuilder, TokenProvider, DI, Assertions, Config, Logging)
-ApiTestFramework.Clients — NSwag-generated DTOs and HTTP clients (do not edit by hand)
-ApiTestFramework.Steps   — reusable steps (AuthServiceSteps, ProductServiceSteps, OrderServiceSteps) + Builders (generated + custom partials) + DataGenerators
-ApiTestFramework.Tests   — NUnit test fixtures (AuthCrudTests, ProductCrudTests, OrderCrudTests) + Generated/ test scaffolds (*.cs.txt)
-ApiTestFramework.OpenApi — OpenAPI spec parsing (SchemaExtractor) + builder/test-case scaffolding (BuilderScaffolder, TestCaseScaffolder)
-ApiTestFramework.Generator.Cli — dotnet run → regenerates builders + test scaffolds from swagger/*.json
+framework/src/ApiTestFramework.Core           runtime: ApiClient, RequestBuilder, auth, DI, config, assertions, Allure, BaseTest
+framework/src/ApiTestFramework.OpenApi        OpenAPI loader, SchemaExtractor, BuilderScaffolder, TestCaseScaffolder
+framework/src/ApiTestFramework.Generator.Cli  generator front-end, configured by a generator.json
+framework/tests/ApiTestFramework.Framework.Tests  offline unit tests of the framework
+tools/                                         Python tooling (collections, k6, smoke, fuzz, mock), configured by openapi-tools.json
+examples/demo-shop/services/                   example microservices (Auth :5300, Product :5100, Order :5200) — system under test only
+examples/demo-shop/api-tests/DemoShop.Clients  committed swagger contracts, DTOs, route constants
+examples/demo-shop/api-tests/DemoShop.Steps    step classes, generated builders (+ Custom/ partials), data generators
+examples/demo-shop/api-tests/DemoShop.Tests    NUnit fixtures, EndToEnd/ flows, GlobalSetup, Generated/ scaffolds (*.cs.txt)
 ```
 
-### Key Classes
+## Hard rules
 
-- **`ApiClient`** — wraps RestSharp, auto-attaches Bearer token from `TokenProvider`, logs all requests to Allure
-- **`RequestBuilder`** — fluent builder: `RequestBuilder.Create().WithMethod(Method.Post).WithPath("/api/...").WithBody(dto)`; auth per request via `AsIdentity("admin")`, `WithBearerToken(raw)` or `WithoutAuth()`
-- **`RequestFactory`** — shortcuts: `RequestFactory.Get(path)`, `RequestFactory.Post(path, body)`, etc.
-- **`TokenProvider`** — static store of JWT tokens keyed by identity name; the default identity plus every entry from the `Identities` config section are registered in `GlobalSetup.cs`; the default token is auto-injected into every request
-- **`BaseTest`** — base class for all test fixtures; inherit from it
-- **`ResponseAssertions`** — extension methods: `.ShouldHaveStatusCode(HttpStatusCode.OK)`, `.ShouldMatchDto(expected)`, `.ShouldHaveData()`
-- **`ContainerProvider`** — Autofac DI; use `ContainerProvider.ResolveNamed<ApiClient>("ProductService")`
+1. **`framework/` and `tools/` must never reference the example** — no service names, routes, ports
+   or DemoShop types. Product-specific things are configuration (`appsettings.test.json`,
+   `generator.json`, `openapi-tools.json`) or consumer code in `examples/...`.
+2. **Tests call steps, never raw HTTP**, except for deliberate anonymous/malformed requests
+   (`RequestBuilder...WithoutAuth()`).
+3. **Never edit generated files**: `*.g.cs` builders, `Generated/*.cs.txt` scaffolds, `collections/`,
+   `perf/k6/`. Change the contract and regenerate:
+   `./examples/demo-shop/api-tests/scripts/regenerate-all.ps1`, `python tools/generate_collections.py`,
+   `python tools/generate_k6.py`. CI fails on stale generated code.
+4. The committed swagger in `DemoShop.Clients/swagger/` is a **curated contract** (required fields,
+   401/403, enums as integers). Live swagger is less precise — review diffs after `refresh-swagger.ps1`.
+5. DTOs in `DemoShop.Clients/Dtos/` are hand-written mirrors of the contract (namespace
+   `DemoShop.Clients.<Service>`, class names = schema names).
 
-### How to Add a New Test
+## Writing tests
 
-1. Create a test class in `tests/ApiTestFramework.Tests/<ServiceName>/`
-2. Inherit from `BaseTest`
-3. Resolve the step class: `_steps = new ProductServiceSteps()`
-4. Use step methods to set up data and make API calls
-5. Assert using `ResponseAssertions` extensions
-
-Example:
 ```csharp
 [TestFixture]
-public class MyTest : BaseTest
+[AllureSuite("ProductService")]
+[AllureFeature("Browse by category")]
+public class ProductCategoryTests : BaseTest
 {
-    private ProductServiceSteps _steps = null!;
+    private ProductServiceSteps _products = null!;
+    private ProductServiceSteps _admin = null!;
 
-    // Use the OnFixtureSetUp hook, not your own [OneTimeSetUp]: BaseTest catches
-    // failures here and reports every test as failed in Allure (a throwing
-    // [OneTimeSetUp] makes the tests vanish from the report).
+    // fixture setup goes into OnFixtureSetUp, never a custom [OneTimeSetUp]
     protected override void OnFixtureSetUp()
     {
-        _steps = new ProductServiceSteps();
+        _products = new ProductServiceSteps();
+        _admin = _products.AsIdentity(TestIdentities.Admin);    // DELETE is admin-only
     }
 
     [Test]
-    public async Task MyScenario()
+    public async Task GetProductsByCategory_ReturnsOnlyActiveProductsOfThatCategory()
     {
-        var product = await _steps.CreateProductAsync();
-        // optional: runs in TearDown whatever the outcome (LIFO, failures ignored)
-        RegisterCleanup(() => _steps.AsIdentity("admin").DeleteProductAsync(product.Id));
+        var category = $"cat-{Guid.NewGuid():N}"[..20];         // own your data
+        var product = await _products.CreateProductAsync(
+            ProductDataGenerator.GenerateCreateProductRequest(r => r.Category = category));
+        RegisterCleanup(() => _admin.DeleteProductAsync(product.Id));   // runs in TearDown, LIFO
 
-        var response = await _steps.GetProductAsync(product.Id);
+        var response = await _products.GetProductsByCategoryAsync(category);
+
         response.ShouldHaveStatusCode(HttpStatusCode.OK);
-        response.ShouldHaveData().Price.Amount.Should().Be(product.Price.Amount);
+        response.ShouldHaveData().Select(p => p.Id).Should().Equal(product.Id);
     }
 }
 ```
 
-### Accessing Nested DTO Fields in Tests
+- Naming: `Operation_Scenario_ExpectedResult`; all tests `async Task`.
+- Assertions: `ShouldHaveStatusCode`, `ShouldBeSuccessful`, `ShouldHaveData()` (returns `T`),
+  `ShouldMatchDto`, `ShouldMatchDtoExcluding` + FluentAssertions 7.
+- Request bodies: generated builders (`new CreateOrderRequestBuilder().ForProducts((id, 2)).WithShipping(s => ...)`)
+  or data generators (`OrderDataGenerator.GenerateCreateOrderRequest(productId)`). Builders never invent ids.
+- Partial updates in flows: plain DTOs (`new UpdateOrderRequest { Status = OrderStatus.Shipped }`).
+- Unique data per test (GUID fragments) — the database is shared and not reset.
 
-```csharp
-// Auth
-authResponse.Token.AccessToken      // JWT string
-authResponse.User.Username          // username
-authResponse.Token.ExpiresAt        // DateTimeOffset
+## Steps
 
-// Product
-product.Price.Amount                // decimal price
-product.Price.Currency              // "USD"
-product.Inventory.StockQuantity     // int
-product.Inventory.InStock           // bool
-product.Audit.CreatedAt             // DateTimeOffset
+One class per service in `DemoShop.Steps/ServiceSteps`, client via
+`ContainerProvider.ResolveNamed<ApiClient>("<Services key>")`, every request through the private
+`Authorized(builder)` helper, `[AllureStep("...")]` on each method. Happy-path steps assert success
+and return the entity (`CreateOrderAsync`); `Try...` steps return the raw response for negative tests.
+`AsIdentity(name)` / `WithToken(raw)` return a bound copy.
 
-// Order
-order.Product.ProductId             // int
-order.Product.ProductName           // string
-order.Product.UnitPrice             // decimal
-order.Product.Quantity              // int
-order.Customer.Name                 // string
-order.Customer.Email                // string
-order.TotalPrice                    // decimal
-order.Status                        // OrderStatus enum
-```
+## Authentication & identities
 
-### NSwag Client Generation
+- Mode from `appsettings.test.json` → `Authentication:Mode` (demo: `SessionToken`).
+- `GlobalSetup` registers the default user and every `Identities` entry (`admin`, `user`; constants in
+  `TestIdentities`). Ad-hoc users: `AuthServiceSteps.RegisterIdentityAsync(name, role)`.
+- Per request: `.AsIdentity("admin")`, `.WithBearerToken(raw)`, `.WithoutAuth()` (401 tests).
 
-DTOs in `tests/ApiTestFramework.Clients/Dtos/` are **generated** from OpenAPI specs — do not edit by hand.
+## Configuration
 
-- Offline swagger files: `tests/ApiTestFramework.Clients/swagger/`
-- NSwag configs: `nswag-auth.nswag`, `nswag-product.nswag`, `nswag-order.nswag`
-- To regenerate clients: run `generate-clients.bat` (requires `dotnet tool install -g NSwag.ConsoleCore`)
-- To refresh swagger from live services: run `scripts/refresh-swagger.ps1` (services must be running)
+`DemoShop.Tests/appsettings.test.json`:
 
-### Configuration
-
-Test configuration is in `tests/ApiTestFramework.Tests/appsettings.test.json`:
 ```json
 {
-  "AuthService":    { "BaseUrl": "http://localhost:5300" },
-  "ProductService": { "BaseUrl": "http://localhost:5100" },
-  "OrderService":   { "BaseUrl": "http://localhost:5200" },
-  "Identities": [
-    { "Name": "admin", "Role": "Admin" },
-    { "Name": "user",  "Role": "User" }
-  ]
+  "Identities": [ { "Name": "admin", "Role": "Admin" }, { "Name": "user", "Role": "User" } ],
+  "Services": {
+    "AuthService":    { "BaseUrl": "http://localhost:5300" },
+    "ProductService": { "BaseUrl": "http://localhost:5100" },
+    "OrderService":   { "BaseUrl": "http://localhost:5200" }
+  },
+  "Authentication": { "Mode": "SessionToken" },
+  "DefaultTimeoutSeconds": 30,
+  "RetryCount": 0
 }
 ```
 
-### Multiple Identities (different tokens per request)
+Overrides: `TEST_Services__OrderService__BaseUrl`, `TEST_RetryCount`, `TEST_ENVIRONMENT=<name>`.
 
-Each `Identities` entry is registered during `GlobalSetup` and its token stored in `TokenProvider` under `Name` (constants in `TestIdentities`). Usage:
+## Running
 
-```csharp
-// per request
-await client.SendAsync(RequestFactory.Delete("/api/products/42").AsIdentity(TestIdentities.Admin));
-
-// per steps instance (also propagates to nested steps, e.g. Order → Product)
-var adminSteps = new ProductServiceSteps().AsIdentity(TestIdentities.Admin);
-
-// raw ad-hoc token
-var admin = await _authSteps.RegisterUserAsync(AuthDataGenerator.GenerateRegisterRequest(role: "Admin"));
-await _productSteps.WithToken(admin.Token.AccessToken).DeleteProductAsync(id);
-
-// anonymous request (401 tests)
-RequestFactory.Get("/api/products").WithoutAuth();
+```bash
+dotnet test framework/tests/ApiTestFramework.Framework.Tests
+docker compose -f examples/demo-shop/docker-compose.yml up -d --build --wait
+dotnet test examples/demo-shop/api-tests/DemoShop.Tests [--filter "FullyQualifiedName~EndToEnd"]
 ```
 
-### Running Tests
+CI: `.github/workflows/tests.yml` (PRs, pushes to develop, manual runs with an NUnit filter).
 
-Services must be started first:
-```powershell
-dotnet run --project src/AuthService    --urls http://localhost:5300
-dotnet run --project src/ProductService --urls http://localhost:5100
-dotnet run --project src/OrderService   --urls http://localhost:5200
-```
-Then: `dotnet test tests/ApiTestFramework.Tests/`
+## Example services (for context only)
 
----
-
-## Future: Auto-Generated Tests from OpenAPI
-
-The `ApiTestFramework.OpenApi` project provides infrastructure to:
-1. **Parse** swagger.json → `OpenApiSpecLoader.LoadFromFile(path)` + `GetEndpoints(doc)`
-2. **Scaffold** test cases → `TestCaseScaffolder.GenerateTestCases(endpoints, serviceName)`
-3. **Generate** C# test code → `TestCaseScaffolder.GenerateCSharpTestClass(cases, namespace)`
-
-Use this to bootstrap tests for new endpoints by reading the swagger.json of a service.
-
----
-
-## Conventions
-
-- All tests are async (`async Task`)
-- Test method naming: `MethodName_Scenario_ExpectedResult` (e.g., `CreateProduct_WithValidData_ReturnsCreated`)
-- Data generators use **Bogus** library for random but realistic test data
-- Every step is annotated with `[AllureStep]` for Allure report hierarchy
-- Repository pattern: interface + SQL/Redis implementation; Redis failures are silently swallowed
-- Migrations: use EF Core `Database.EnsureCreated()` for dev/test; add migration commands for production
+- Nested DTOs: `Product { Price { Amount, Currency }, Inventory { StockQuantity, InStock }, Audit }`,
+  `Order { Customer { Name, Email, Address? }, Items [ { ProductId, ProductName, UnitPrice, Quantity, LineTotal } ], Shipping { Method, Address?, Notes? }, TotalPrice, Status }`.
+- `DELETE /api/products/{id}` requires role `Admin`; OrderService validates products via ProductService
+  forwarding the caller's token. Known demo simplifications are listed in `examples/demo-shop/README.md`.

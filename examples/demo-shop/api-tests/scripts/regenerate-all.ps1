@@ -9,20 +9,24 @@
       1. (optional, -RefreshSwagger) Download fresh swagger.json files from the
          RUNNING services -> DemoShop.Clients/swagger/
       2. (optional, -NSwag) Regenerate NSwag clients/DTOs from the offline
-         swagger files (requires: dotnet tool install -g NSwag.ConsoleCore)
+         swagger files (requires: dotnet tool install -g NSwag.ConsoleCore).
+         NOTE: the demo shop uses hand-written DTOs (DemoShop.Clients/Dtos);
+         NSwag writes Generated/*.generated.cs into the SAME namespaces, so
+         only use -NSwag after deleting the hand-written DTO file of a service.
       3. Regenerate test-data builders (*.g.cs) and test scaffolds (*.cs.txt)
          from the offline swagger files via ApiTestFramework.Generator.Cli
+         (configured by ../generator.json)
       4. Build the solution to verify everything still compiles
 
     Hand-written builder customizations (DemoShop.Steps/Builders/Custom/*)
     are partial classes and are never touched by regeneration.
 
 .EXAMPLE
-    # Full pipeline against running services:
-    .\scripts\regenerate-all.ps1 -RefreshSwagger -NSwag
-
     # Builders + scaffolds only (offline, most common during test development):
-    .\scripts\regenerate-all.ps1
+    ./examples/demo-shop/api-tests/scripts/regenerate-all.ps1
+
+    # Pull the contracts from running services first (review the diff afterwards):
+    ./examples/demo-shop/api-tests/scripts/regenerate-all.ps1 -RefreshSwagger
 #>
 param(
     [switch]$RefreshSwagger,

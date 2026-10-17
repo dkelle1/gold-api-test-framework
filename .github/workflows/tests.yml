@@ -76,7 +76,7 @@ jobs:
           python tools/generate_collections.py
           python tools/generate_k6.py
           # scaffolds carry a generation timestamp: ignore that line only
-          if ! git diff --exit-code -I '^// Generated: ' -- examples/; then
+          if ! git diff --exit-code -I 'Generated: [0-9]' -- examples/; then
             echo "::error::Generated files are stale. Run examples/demo-shop/api-tests/scripts/regenerate-all.ps1 and the Python generators, then commit."
             exit 1
           fi
