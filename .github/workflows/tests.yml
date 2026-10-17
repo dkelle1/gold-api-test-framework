@@ -116,6 +116,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: unit
     timeout-minutes: 45
+    env:
+      # OAuth2 client secrets: the same value for the demo authorization server (compose) and the
+      # tests / smoke runner. Repository secrets win; the fallbacks are the demo stack's defaults.
+      CATALOG_CLIENT_SECRET: ${{ secrets.CATALOG_CLIENT_SECRET || 'catalog-api-tests-secret' }}
+      ORDERS_CLIENT_SECRET: ${{ secrets.ORDERS_CLIENT_SECRET || 'orders-api-tests-secret' }}
+      TEST_Authentication__Clients__Catalog__OAuth2__ClientSecret: ${{ secrets.CATALOG_CLIENT_SECRET || 'catalog-api-tests-secret' }}
+      TEST_Authentication__Clients__Orders__OAuth2__ClientSecret: ${{ secrets.ORDERS_CLIENT_SECRET || 'orders-api-tests-secret' }}
     steps:
       - uses: actions/checkout@v4
 

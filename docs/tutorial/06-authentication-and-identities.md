@@ -211,8 +211,8 @@ through `Jwt:ClientAudience`.
    TEST_Authentication__Clients__Orders__OAuth2__ClientSecret=orders-api-tests-secret
    ```
 
-   (The demo also keeps its stack's default secrets in `appsettings.test.json` so that it runs out
-   of the box. Don't copy that into a real product.)
+   In the demo these two lines come with `.env.example` (chapter 1); CI sets them from repository
+   secrets, falling back to the stack's defaults.
 
 3. Write the tests as before. Steps without a binding now use their service's client; to check that
    a token of another group is refused, borrow that group's client:

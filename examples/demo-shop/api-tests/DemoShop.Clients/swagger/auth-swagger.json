@@ -143,7 +143,7 @@
         "properties": {
           "grant_type": { "type": "string", "enum": [ "client_credentials" ] },
           "client_id": { "type": "string", "example": "catalog-api-tests" },
-          "client_secret": { "type": "string", "example": "catalog-api-tests-secret" },
+          "client_secret": { "type": "string", "example": "change-me" },
           "scope": { "type": "string", "description": "Space-separated subset of the client's scopes; all of them when omitted", "example": "catalog.read" },
           "audience": { "type": "string", "description": "One of the client's audiences; all of them when omitted", "example": "catalog" }
         }

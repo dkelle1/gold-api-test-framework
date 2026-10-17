@@ -162,7 +162,7 @@
                 },
                 {
                   "key": "client_secret",
-                  "value": "catalog-api-tests-secret",
+                  "value": "change-me",
                   "type": "text"
                 },
                 {

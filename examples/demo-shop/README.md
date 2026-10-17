@@ -29,6 +29,7 @@ or the tests in any way. The API tests depend on the framework, never the other 
 ## Run it
 
 ```bash
+cp .env.example .env        # once: the OAuth2 client secrets the suite needs (git-ignored)
 docker compose -f examples/demo-shop/docker-compose.yml up -d --build --wait
 dotnet test examples/demo-shop/api-tests/DemoShop.Tests
 docker compose -f examples/demo-shop/docker-compose.yml down -v
@@ -119,7 +120,8 @@ These are known and intentional — useful as test targets, not as production pa
   `appsettings.json` / `docker-compose.yml`.
 - Placing an order checks stock but **does not decrement it**.
 - Orders have no owner: any authenticated user can read or change any order.
-- Machine clients and their secrets live in `AuthService/appsettings.json`; only product deletion
+- Machine clients are registered in `AuthService/appsettings.json`, their secrets come from
+  `docker-compose.yml` (`CATALOG_CLIENT_SECRET`, `ORDERS_CLIENT_SECRET`); only product deletion
   checks a scope (`catalog.admin`), other operations accept any token of the right audience.
 - Databases are created with `EnsureCreated()` (no migrations); Redis caches user and order lookups.
 - Health checks only test that the port is open; there are no `/health` endpoints.

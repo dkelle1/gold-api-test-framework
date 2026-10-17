@@ -12,7 +12,7 @@
     { "key": "order",   "name": "OrderService",   "swagger": "order-swagger.json",   "baseUrl": "http://localhost:5200", "envVar": "ORDER_BASE_URL",   "authClient": "Orders" }
   ],
   "authClients": {
-    "Catalog": { "tokenUrl": "/connect/token", "clientId": "catalog-api-tests", "clientSecret": "catalog-api-tests-secret", "scope": "catalog.read catalog.write catalog.admin" },
-    "Orders":  { "tokenUrl": "/connect/token", "clientId": "orders-api-tests",  "clientSecret": "orders-api-tests-secret",  "scope": "orders.read orders.write catalog.read" }
+    "Catalog": { "tokenUrl": "/connect/token", "clientId": "catalog-api-tests", "scope": "catalog.read catalog.write catalog.admin" },
+    "Orders":  { "tokenUrl": "/connect/token", "clientId": "orders-api-tests",  "scope": "orders.read orders.write catalog.read" }
   }
 }

@@ -6,6 +6,8 @@ namespace AuthService.Models;
 public class OAuthClient
 {
     public string ClientId { get; set; } = string.Empty;
+
+    /// <summary>Supplied by the environment (docker-compose: OAuthClients__&lt;n&gt;__Secret); empty = client disabled.</summary>
     public string Secret { get; set; } = string.Empty;
 
     /// <summary>Scopes the client may request; granted all of them when it asks for none.</summary>
