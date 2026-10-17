@@ -8,13 +8,24 @@ namespace ApiTestFramework.Core.Client;
 /// Generic API client wrapping RestSharp. Each service gets its own instance
 /// configured with a base URL. Provides typed and untyped Execute methods.
 /// Every request/response is automatically attached to the current Allure step.
+/// Transient failures are retried up to <see cref="RetryCount"/> times with
+/// exponential back-off (200 ms × 2^(attempt-1)) — see <see cref="ShouldRetry"/>.
 /// </summary>
 public class ApiClient : IDisposable
 {
+    private static readonly HashSet<Method> IdempotentMethods =
+        new() { Method.Get, Method.Head, Method.Options, Method.Put, Method.Delete };
+
     private readonly RestClient _client;
     private readonly string _baseUrl;
     private readonly string _serviceName;
     private readonly ILogger _logger;
+
+    /// <summary>
+    /// Number of retry attempts on transient failures. Defaults to 0 (no retries).
+    /// Set via <c>TestConfiguration.RetryCount</c> (appsettings.test.json: "RetryCount").
+    /// </summary>
+    public int RetryCount { get; init; }
 
     public ApiClient(string baseUrl, string serviceName)
     {
@@ -41,7 +52,7 @@ public class ApiClient : IDisposable
 
         AllureRequestLogger.AttachRequest(request, _baseUrl, _serviceName);
 
-        var response = await _client.ExecuteAsync(request);
+        var response = await ExecuteWithRetryAsync(request, () => _client.ExecuteAsync(request));
 
         _logger.Information("[{Service}] Response: {StatusCode} ({Length} bytes)",
             _serviceName, (int)response.StatusCode, response.Content?.Length ?? 0);
@@ -61,7 +72,7 @@ public class ApiClient : IDisposable
 
         AllureRequestLogger.AttachRequest(request, _baseUrl, _serviceName);
 
-        var response = await _client.ExecuteAsync<T>(request);
+        var response = await ExecuteWithRetryAsync(request, () => _client.ExecuteAsync<T>(request));
 
         _logger.Information("[{Service}] Response: {StatusCode} ({Length} bytes)",
             _serviceName, (int)response.StatusCode, response.Content?.Length ?? 0);
@@ -82,6 +93,49 @@ public class ApiClient : IDisposable
     /// </summary>
     public Task<RestResponse<T>> SendAsync<T>(RequestBuilder builder)
         => ExecuteAsync<T>(builder.Build());
+
+    private async Task<TResponse> ExecuteWithRetryAsync<TResponse>(
+        RestRequest request, Func<Task<TResponse>> send) where TResponse : RestResponse
+    {
+        var response = await send();
+
+        for (var attempt = 1; attempt <= RetryCount && ShouldRetry(request.Method, response); attempt++)
+        {
+            var delay = TimeSpan.FromMilliseconds(200 * Math.Pow(2, attempt - 1));
+            _logger.Warning("[{Service}] {Method} {Resource} failed ({Status}{Error}) — retry {Attempt}/{Max} in {Delay} ms",
+                _serviceName, request.Method, request.Resource, (int)response.StatusCode,
+                response.ErrorMessage is null ? "" : $", {response.ErrorMessage}",
+                attempt, RetryCount, delay.TotalMilliseconds);
+
+            await Task.Delay(delay);
+            response = await send();
+        }
+
+        return response;
+    }
+
+    /// <summary>
+    /// Decides whether a response is worth retrying.
+    /// <list type="bullet">
+    ///   <item>Idempotent methods (GET, HEAD, OPTIONS, PUT, DELETE): retried on
+    ///   network errors, timeouts and 5xx responses.</item>
+    ///   <item>Non-idempotent methods (POST, PATCH): retried only when no HTTP
+    ///   response was received at all (e.g. connection refused) — a 5xx or a
+    ///   timeout may mean the server already applied the change, and a retry
+    ///   would create duplicates.</item>
+    /// </list>
+    /// 4xx responses are never retried — they are valid API behaviour under test.
+    /// </summary>
+    internal static bool ShouldRetry(Method method, RestResponse response)
+    {
+        var noResponse = response.StatusCode == 0 && response.ResponseStatus != ResponseStatus.TimedOut;
+        if (!IdempotentMethods.Contains(method))
+            return noResponse;
+
+        return noResponse
+            || response.ResponseStatus == ResponseStatus.TimedOut
+            || (int)response.StatusCode >= 500;
+    }
 
     public void Dispose()
     {

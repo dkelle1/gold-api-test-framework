@@ -20,26 +20,26 @@ public class ApiClientModule : Module
     {
         // Legacy typed sections (kept for backwards compatibility with the
         // demo microservices) — skipped when not configured.
-        RegisterClient(builder, "ProductService", _config.ProductService);
-        RegisterClient(builder, "OrderService", _config.OrderService);
-        RegisterClient(builder, "AuthService", _config.AuthService);
+        RegisterClient(builder, "ProductService", _config.ProductService, _config.RetryCount);
+        RegisterClient(builder, "OrderService", _config.OrderService, _config.RetryCount);
+        RegisterClient(builder, "AuthService", _config.AuthService, _config.RetryCount);
 
         // Generic registry: any product registers its services under
         // "Services" in appsettings.test.json without touching this class.
         foreach (var (key, service) in _config.Services)
         {
-            RegisterClient(builder, key, service);
+            RegisterClient(builder, key, service, _config.RetryCount);
         }
 
         builder.RegisterInstance(_config).AsSelf().SingleInstance();
     }
 
-    private static void RegisterClient(ContainerBuilder builder, string key, ServiceConfig service)
+    private static void RegisterClient(ContainerBuilder builder, string key, ServiceConfig service, int retryCount)
     {
         if (string.IsNullOrEmpty(service.BaseUrl)) return;
 
         var name = string.IsNullOrEmpty(service.Name) ? key : service.Name;
-        builder.Register(c => new ApiClient(service.BaseUrl, name))
+        builder.Register(c => new ApiClient(service.BaseUrl, name) { RetryCount = retryCount })
             .Named<ApiClient>(key)
             .SingleInstance();
     }

@@ -27,7 +27,7 @@ mock server, diagnostics), not a test layer.
 - **ApiTestFramework.Steps** — Step classes per service, generated fluent test-data builders (+ partial customizations), Bogus data generators
 - **ApiTestFramework.OpenApi** — OpenAPI spec loader, schema extractor, builder & test-case scaffolders
 - **ApiTestFramework.Generator.Cli** — console tool that regenerates builders and test scaffolds from swagger
-- **ApiTestFramework.Tests** — NUnit test fixtures (45 tests)
+- **ApiTestFramework.Tests** — NUnit test fixtures (51 tests)
 
 ## Tech Stack
 | Component | Technology |
@@ -157,7 +157,7 @@ the service logs.
 │   │       └── Custom/                 # hand-written partial halves (survive regeneration)
 │   ├── ApiTestFramework.OpenApi/       # OpenAPI loader, SchemaExtractor, BuilderScaffolder, TestCaseScaffolder
 │   ├── ApiTestFramework.Generator.Cli/ # dotnet run → regenerates builders + test scaffolds
-│   └── ApiTestFramework.Tests/         # NUnit test fixtures (Auth, Product, Order, Framework — 45 tests)
+│   └── ApiTestFramework.Tests/         # NUnit test fixtures (Auth, Product, Order, Framework — 51 tests)
 │       └── Generated/                  # *.cs.txt test scaffolds (promote to .cs by hand)
 ├── tools/                              # Generic OpenAPI-driven Python tooling (see tools/README.md)
 │   ├── openapi_common.py               #   shared lib: service registry, spec parsing, payload generation
@@ -267,6 +267,18 @@ var response = await client.SendAsync<Product>(
         .WithQueryParameter("filter", "active")
         .WithTimeout(15));
 ```
+
+### Retries on transient failures
+`ApiClient` retries transient failures with exponential back-off (200 ms, 400 ms, 800 ms, ...).
+The number of retries comes from `RetryCount` in `appsettings.test.json` (default `0` = off;
+override per environment with `TEST_RetryCount=2`):
+
+| Method | Retried on |
+|--------|------------|
+| GET, HEAD, OPTIONS, PUT, DELETE | network errors, timeouts, 5xx |
+| POST, PATCH | only when no HTTP response was received (e.g. connection refused) — a 5xx/timeout may mean the change was already applied |
+
+4xx responses are never retried. Each retry is logged as a warning; Allure gets the final response.
 
 ### Allure Reporting
 Every request/response is automatically attached to the Allure report. On assertion failures, detailed failure info including the response body is logged. DTO comparison results (expected vs actual) are attached for full visibility.
@@ -385,7 +397,7 @@ response.ShouldMatchDtoExcluding(expectedProduct,
 | AuthService | 7 | Register, login, duplicate user, wrong password, unauthorized access |
 | ProductService | 11 | Create, get, get all, update, delete (valid & invalid scenarios) + role-based authorization (admin vs user vs anonymous) |
 | OrderService | 11 | Create (single/multi-item, nested address+shipping, invalid product, empty items), get, get all, update (nested customer), delete, full lifecycle |
-| Framework | 16 | Unit tests for the pluggable authentication layer (providers, factory, RequestBuilder injection, WithoutAuth/AsIdentity precedence) and BaseTest cleanup — run without live services |
+| Framework | 22 | Unit tests for the pluggable authentication layer (providers, factory, RequestBuilder injection, WithoutAuth/AsIdentity precedence), BaseTest cleanup and the ApiClient retry policy — run without live services |
 
 ## License
 
