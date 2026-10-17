@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ApiTestFramework.Core.Auth;
 using RestSharp;
 
@@ -19,6 +20,8 @@ public class RequestBuilder
     private int? _timeoutSeconds;
     private string? _identity;
     private bool _suppressAuth;
+
+    private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
 
     private RequestBuilder() { }
 
@@ -145,7 +148,9 @@ public class RequestBuilder
     }
 
     /// <summary>
-    /// Sets the content type for the request.
+    /// Sends the body with the given content type (e.g. "application/merge-patch+json").
+    /// A string body is sent as-is; any other object is serialized as JSON (camelCase).
+    /// Without this call the body is sent as application/json.
     /// </summary>
     public RequestBuilder WithContentType(string contentType)
     {
@@ -215,9 +220,8 @@ public class RequestBuilder
         {
             if (_contentType != null)
             {
-                request.AddStringBody(
-                    Newtonsoft.Json.JsonConvert.SerializeObject(_body),
-                    ContentType.FromDataFormat(DataFormat.Json));
+                var text = _body as string ?? JsonSerializer.Serialize(_body, WebJson);
+                request.AddStringBody(text, _contentType);
             }
             else
             {
