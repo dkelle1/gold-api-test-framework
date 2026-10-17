@@ -99,6 +99,12 @@ These are known and intentional — useful as test targets, not as production pa
 - Databases are created with `EnsureCreated()` (no migrations); Redis caches user and order lookups.
 - Health checks only test that the port is open; there are no `/health` endpoints.
 
+## Business rules and flows
+
+- [`api-tests/domain-rules.md`](api-tests/domain-rules.md) — the intended behaviour as numbered rules.
+- [`api-tests/flows/`](api-tests/flows/README.md) — end-to-end flows described in plain language; the
+  tests in `DemoShop.Tests/EndToEnd/` are generated from them and link back.
+
 ## Where the tests are explained
 
 - [Tutorial](../../docs/tutorial/README.md) — builds these tests step by step, A to Z.

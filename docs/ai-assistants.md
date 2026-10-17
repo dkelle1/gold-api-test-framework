@@ -30,7 +30,7 @@ change `AGENTS.md` first, then the short summaries.
 | `add-api-tests` | tests for an endpoint: contract check → steps → promote scaffold → isolated data → run |
 | `onboard-service` | a new service: contract, DTOs, routes, the three configs, generation, step class |
 | `update-api-contract` | an API changed: merge into the curated contract, regenerate everything in one commit |
-| `write-e2e-flow` | multi-service, multi-actor journeys built from existing steps |
+| `write-e2e-flow` | generate the full e2e test from a flow description (`flows/*.md` or words): expectations from the flow and `domain-rules.md`, deviations reported, never bent |
 | `diagnose-test-failure` | red CI or flaky tests: evidence, classification, fix without weakening tests |
 | `extend-framework` | changes to `framework/` or `tools/`: product-agnostic, offline tests, docs |
 

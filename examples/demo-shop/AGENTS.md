@@ -38,6 +38,13 @@ uses the framework. Read the root `AGENTS.md` first; these rules add to it.
 - Known demo simplifications (anyone can register as Admin, orders don't decrement stock, …) are
   listed in `README.md` here — don't "fix" them silently; tests may rely on them.
 
+## Flows and business rules
+
+- `api-tests/domain-rules.md` holds the intended behaviour (rule IDs); `api-tests/flows/*.md` the e2e
+  flows. Expectations in e2e tests come **only** from these files — never from observed responses.
+- A disagreement between system and flow/rule is reported, not "fixed" in the test.
+- New flow → flow file first (template: `.claude/skills/write-e2e-flow/flow-template.md`), then the test.
+
 ## Verify
 
 ```bash
