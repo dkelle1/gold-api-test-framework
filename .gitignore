@@ -37,7 +37,7 @@ TestResults/
 allure-results/
 
 # NSwag Generated (regenerated from swagger)
-tests/ApiTestFramework.Clients/Generated/
+examples/demo-shop/api-tests/DemoShop.Clients/Generated/
 
 # OS
 Thumbs.db

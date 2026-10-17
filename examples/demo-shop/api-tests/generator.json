@@ -1,0 +1,21 @@
+{
+  // Generator config for the demo-shop API tests.
+  // Run: dotnet run --project framework/src/ApiTestFramework.Generator.Cli -- --config examples/demo-shop/api-tests/generator.json
+  // Paths are relative to this file; "{service}" is replaced with each service name.
+  "swaggerDir": "DemoShop.Clients/swagger",
+  "regenerateHint": "examples/demo-shop/api-tests/scripts/regenerate-all.ps1",
+  "services": [
+    { "name": "AuthService",    "swagger": "auth-swagger.json" },
+    { "name": "ProductService", "swagger": "product-swagger.json" },
+    { "name": "OrderService",   "swagger": "order-swagger.json" }
+  ],
+  "builders": {
+    "outputDir": "DemoShop.Steps/Builders/{service}/Generated",
+    "namespace": "DemoShop.Steps.Builders.{service}",
+    "dtoNamespace": "DemoShop.Clients.{service}"
+  },
+  "scaffolds": {
+    "outputDir": "DemoShop.Tests/Generated",
+    "namespace": "DemoShop.Tests.{service}"
+  }
+}

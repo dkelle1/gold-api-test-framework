@@ -1,10 +1,12 @@
 name: Tests
 
-# Runs the whole test suite against the full docker-compose stack
-# (SQL Server, Redis, AuthService, ProductService, OrderService).
+# Runs every test in the repository:
+#   - framework unit tests + "generated code is up to date" gate (no Docker)
+#   - the demo-shop example API suite against its docker-compose stack
+#     (SQL Server, Redis, AuthService, ProductService, OrderService)
 #
 #   - pull requests / pushes to develop: automatically
-#   - manually: Actions → Tests → "Run workflow" (optional NUnit filter)
+#   - manually: Actions -> Tests -> "Run workflow" (optional NUnit filter)
 
 on:
   push:
@@ -14,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       filter:
-        description: 'NUnit filter for the integration run, e.g. "FullyQualifiedName~OrderService" (empty = all tests)'
+        description: 'NUnit filter for the example API tests, e.g. "FullyQualifiedName~OrderService" (empty = all tests)'
         required: false
         default: ''
       smoke:
@@ -33,12 +35,16 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   SOLUTION: ApiTestFramework.sln
-  TEST_PROJECT: tests/ApiTestFramework.Tests/ApiTestFramework.Tests.csproj
+  FRAMEWORK_TESTS: framework/tests/ApiTestFramework.Framework.Tests/ApiTestFramework.Framework.Tests.csproj
+  EXAMPLE_TESTS: examples/demo-shop/api-tests/DemoShop.Tests/DemoShop.Tests.csproj
+  EXAMPLE_COMPOSE: examples/demo-shop/docker-compose.yml
+  GENERATOR: framework/src/ApiTestFramework.Generator.Cli
+  GENERATOR_CONFIG: examples/demo-shop/api-tests/generator.json
 
 jobs:
   # ── Fast feedback: no Docker, no services ──────────────────────────────────
   unit:
-    name: Build & unit tests
+    name: Build, framework unit tests & generated code
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -53,16 +59,33 @@ jobs:
           dotnet restore "$SOLUTION"
           dotnet build "$SOLUTION" -c Release --no-restore
 
-      - name: Unit tests (Category=Unit)
+      - name: Framework unit tests
         run: >
-          dotnet test "$TEST_PROJECT" -c Release --no-build
-          --filter "Category=Unit"
-          --logger "trx;LogFileName=unit.trx"
+          dotnet test "$FRAMEWORK_TESTS" -c Release --no-build
+          --logger "trx;LogFileName=framework.trx"
           --results-directory test-results
 
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Generated code is up to date
+        run: |
+          # Builders, test scaffolds, collections and k6 scripts must match the committed swagger
+          dotnet run --project "$GENERATOR" -c Release -- --config "$GENERATOR_CONFIG"
+          python tools/generate_collections.py
+          python tools/generate_k6.py
+          # scaffolds carry a generation timestamp: ignore that line only
+          if ! git diff --exit-code -I 'Generated: [0-9]' -- examples/; then
+            echo "::error::Generated files are stale. Run examples/demo-shop/api-tests/scripts/regenerate-all.ps1 and the Python generators, then commit."
+            exit 1
+          fi
+          untracked="$(git status --porcelain --untracked-files=all -- examples/ | grep '^??' || true)"
+          if [ -n "$untracked" ]; then
+            echo "::error::Generation produced new, uncommitted files:"
+            echo "$untracked"
+            exit 1
+          fi
 
       - name: Python tooling against the in-memory mock
         run: |
@@ -75,7 +98,7 @@ jobs:
 
       - name: Test summary
         if: always()
-        run: python scripts/ci/trx-summary.py "Unit tests" test-results/*.trx >> "$GITHUB_STEP_SUMMARY"
+        run: python scripts/ci/trx-summary.py "Framework unit tests" test-results/*.trx >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload results
         if: always()
@@ -87,9 +110,9 @@ jobs:
             mock-server.log
           if-no-files-found: ignore
 
-  # ── Full suite against the real stack ──────────────────────────────────────
+  # ── Example API suite against the real stack ───────────────────────────────
   integration:
-    name: All tests (docker compose stack)
+    name: Example API tests (demo-shop stack)
     runs-on: ubuntu-latest
     needs: unit
     timeout-minutes: 45
@@ -105,8 +128,8 @@ jobs:
           dotnet restore "$SOLUTION"
           dotnet build "$SOLUTION" -c Release --no-restore
 
-      - name: Start services
-        run: docker compose up -d --build --wait --wait-timeout 600
+      - name: Start example services
+        run: docker compose -f "$EXAMPLE_COMPOSE" up -d --build --wait --wait-timeout 600
 
       - name: Capture live swagger
         run: |
@@ -115,14 +138,14 @@ jobs:
           curl -sf http://localhost:5100/swagger/v1/swagger.json -o live-swagger/product-swagger.json
           curl -sf http://localhost:5200/swagger/v1/swagger.json -o live-swagger/order-swagger.json
 
-      - name: Run all tests
+      - name: Run example API tests
         env:
           FILTER: ${{ github.event.inputs.filter }}
         run: |
           args=()
           if [ -n "$FILTER" ]; then args+=(--filter "$FILTER"); fi
-          dotnet test "$TEST_PROJECT" -c Release --no-build "${args[@]}" \
-            --logger "trx;LogFileName=all.trx" \
+          dotnet test "$EXAMPLE_TESTS" -c Release --no-build "${args[@]}" \
+            --logger "trx;LogFileName=example.trx" \
             --results-directory test-results
 
       - uses: actions/setup-python@v5
@@ -136,15 +159,15 @@ jobs:
 
       - name: Test summary
         if: always()
-        run: python scripts/ci/trx-summary.py "All tests" test-results/*.trx >> "$GITHUB_STEP_SUMMARY"
+        run: python scripts/ci/trx-summary.py "Example API tests" test-results/*.trx >> "$GITHUB_STEP_SUMMARY"
 
       - name: Collect Allure results & service logs
         if: always()
         run: |
           mkdir -p allure-results
           # Allure.NUnit 2.12.x writes next to the test assembly, not to the workspace root
-          find tests -path "*/bin/*/allure-results" -type d -exec cp -r {}/. allure-results/ \;
-          docker compose logs --no-color > service-logs.txt 2>&1 || true
+          find examples -path "*/bin/*/allure-results" -type d -exec cp -r {}/. allure-results/ \;
+          docker compose -f "$EXAMPLE_COMPOSE" logs --no-color > service-logs.txt 2>&1 || true
 
       - name: Generate Allure report
         if: always()
@@ -168,4 +191,4 @@ jobs:
 
       - name: Stop services
         if: always()
-        run: docker compose down -v
+        run: docker compose -f "$EXAMPLE_COMPOSE" down -v

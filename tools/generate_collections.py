@@ -8,7 +8,7 @@ Usage:
     python3 tools/generate_collections.py --bruno    # Bruno only
 
 Output:
-    collections/postman/ApiTestFramework.postman_collection.json
+    <collections>/postman/<collectionName>.postman_collection.json
     collections/postman/Local.postman_environment.json
     collections/bruno/  (bruno.json + one .bru file per request)
 
@@ -25,20 +25,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from openapi_common import (  # noqa: E402
-    REPO_ROOT, SERVICES, AuthFlow, Endpoint, Service, configure_console,
+    COLLECTION_NAME, COLLECTIONS_DIR, SERVICES, AuthFlow, Endpoint, Service, configure_console,
     discover_auth_flow, example_body, example_param_value, load_all,
 )
 
-POSTMAN_DIR = REPO_ROOT / "collections" / "postman"
-BRUNO_DIR = REPO_ROOT / "collections" / "bruno"
-
-COLLECTION_NAME = "ApiTestFramework"
+POSTMAN_DIR = COLLECTIONS_DIR / "postman"
+BRUNO_DIR = COLLECTIONS_DIR / "bruno"
 
 
 def base_url_var(service: Service) -> str:
@@ -177,7 +176,7 @@ def generate_postman() -> None:
         json.dumps(collection, indent=2) + "\n", encoding="utf-8")
     (POSTMAN_DIR / "Local.postman_environment.json").write_text(
         json.dumps(environment, indent=2) + "\n", encoding="utf-8")
-    print(f"[postman] wrote {POSTMAN_DIR.relative_to(REPO_ROOT)}/")
+    print(f"[postman] wrote {os.path.relpath(POSTMAN_DIR)}/")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -283,7 +282,7 @@ def generate_bruno() -> None:
                 build_bru_request(service, spec, endpoint, auth_flow, seq),
                 encoding="utf-8")
 
-    print(f"[bruno]   wrote {BRUNO_DIR.relative_to(REPO_ROOT)}/")
+    print(f"[bruno]   wrote {os.path.relpath(BRUNO_DIR)}/")
 
 
 def main() -> None:
