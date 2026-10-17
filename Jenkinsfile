@@ -10,6 +10,8 @@ pipeline {
         // Point the CLI home to the writable workspace directory instead.
         DOTNET_CLI_HOME                  = "${WORKSPACE}/.dotnet-home"
         COMPOSE_PROJECT_NAME             = "api-test-${BUILD_NUMBER}"
+        // The demo-shop example stack is the system under test (docker compose reads COMPOSE_FILE)
+        COMPOSE_FILE                     = 'examples/demo-shop/docker-compose.yml'
         ALLURE_RESULTS_DIR               = 'allure-results'
         TEST_RESULTS_DIR                 = 'TestResults'
         DOTNET_IMAGE                     = 'mcr.microsoft.com/dotnet/sdk:8.0'
@@ -61,16 +63,20 @@ pipeline {
                 sh """
                     mkdir -p ${TEST_RESULTS_DIR}
                     mkdir -p ${ALLURE_RESULTS_DIR}
-                    export TEST_AuthService__BaseUrl=http://auth-service:8080
-                    export TEST_ProductService__BaseUrl=http://product-service:8080
-                    export TEST_OrderService__BaseUrl=http://order-service:8080
-                    dotnet test tests/ApiTestFramework.Tests/ApiTestFramework.Tests.csproj \\
+                    export TEST_Services__AuthService__BaseUrl=http://auth-service:8080
+                    export TEST_Services__ProductService__BaseUrl=http://product-service:8080
+                    export TEST_Services__OrderService__BaseUrl=http://order-service:8080
+                    dotnet test framework/tests/ApiTestFramework.Framework.Tests/ApiTestFramework.Framework.Tests.csproj \\
+                        -c Release --no-build \\
+                        --logger "trx;LogFileName=framework.trx" \\
+                        --results-directory ${TEST_RESULTS_DIR}
+                    dotnet test examples/demo-shop/api-tests/DemoShop.Tests/DemoShop.Tests.csproj \\
                         -c Release --no-build \\
                         --logger "trx;LogFileName=results.trx" \\
                         --results-directory ${TEST_RESULTS_DIR}
                     # Allure.NUnit 2.12.x writes results relative to the test assembly dir.
                     # Copy them to the workspace-root dir that the Jenkins Allure plugin reads.
-                    find tests -path "*/bin/*/allure-results" -type d | while IFS= read -r dir; do
+                    find examples -path "*/bin/*/allure-results" -type d | while IFS= read -r dir; do
                         cp -r "\$dir"/. ${ALLURE_RESULTS_DIR}/
                     done
                 """

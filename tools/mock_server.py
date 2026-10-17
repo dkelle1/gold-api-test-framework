@@ -2,7 +2,7 @@
 """
 Generic OpenAPI mock server. Pure Python stdlib — no deps.
 
-Serves every service registered in tools/openapi_common.SERVICES on its
+Serves every service from the tools config (openapi-tools.json) on its
 default port (5300/5100/5200), with behaviour derived entirely from the spec:
 
   - endpoints marked with a security requirement reject requests without an

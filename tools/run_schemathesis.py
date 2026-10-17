@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -38,11 +39,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from openapi_common import (  # noqa: E402
-    REPO_ROOT, SERVICES, configure_console, discover_auth_flow, example_body, extract_endpoints,
+    REPORTS_DIR, SERVICES, configure_console, discover_auth_flow, example_body, extract_endpoints,
     load_spec,
 )
 
-REPORT_DIR = REPO_ROOT / "TestResults" / "schemathesis"
+REPORT_DIR = REPORTS_DIR / "schemathesis"
 
 
 def find_cli() -> list[str] | None:
@@ -142,7 +143,7 @@ def main() -> int:
         rc = subprocess.call(cmd)
         if rc != 0:
             overall_rc = 1
-        print(f"junit report: {junit.relative_to(REPO_ROOT)}")
+        print(f"junit report: {os.path.relpath(junit)}")
 
     return overall_rc
 

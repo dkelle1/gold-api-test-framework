@@ -2,7 +2,7 @@
 """
 Generic OpenAPI-driven smoke & contract runner. Pure Python stdlib — no deps.
 
-Walks every endpoint of every registered service (tools/openapi_common.SERVICES)
+Walks every endpoint of every registered service (tools config: openapi-tools.json)
 in natural CRUD order, with real chained data:
 
   1. registers a user via the auth service and captures the JWT

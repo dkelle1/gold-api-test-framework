@@ -1,11 +1,16 @@
 """
 Shared OpenAPI utilities for the generic Python tooling in tools/.
 
-Everything here is driven by the committed swagger specs in
-tests/ApiTestFramework.Clients/swagger/. Adding a new microservice to the
-framework only requires a new entry in SERVICES below — every generator
-(Postman/Bruno collections, k6 load tests, smoke runner, schemathesis
-wrapper) picks it up automatically.
+The tools know no concrete product: services, swagger location and output
+directories come from a JSON config file (see docs/framework/python-tooling.md):
+
+    OPENAPI_TOOLS_CONFIG=path/to/openapi-tools.json python3 tools/smoke_runner.py
+
+Without the env var the demo-shop example config is used
+(examples/demo-shop/api-tests/openapi-tools.json). Paths inside the config
+are relative to the config file. Adding a microservice = one entry in
+"services" — every generator (Postman/Bruno collections, k6 load tests,
+smoke runner, schemathesis wrapper, mock server) picks it up automatically.
 
 Stdlib only — no third-party dependencies.
 """
@@ -20,7 +25,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SWAGGER_DIR = REPO_ROOT / "tests" / "ApiTestFramework.Clients" / "swagger"
+DEFAULT_CONFIG = REPO_ROOT / "examples" / "demo-shop" / "api-tests" / "openapi-tools.json"
+CONFIG_PATH = Path(os.environ.get("OPENAPI_TOOLS_CONFIG", DEFAULT_CONFIG)).resolve()
 
 
 def configure_console() -> None:
@@ -33,40 +39,58 @@ def configure_console() -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Service registry
+# Service registry (loaded from the config file)
 # ──────────────────────────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
 class Service:
-    key: str                 # short identifier: "auth", "product", "order"
+    key: str                 # short identifier used on the CLI: "auth", "product", ...
     name: str                # display name
-    swagger_file: str        # filename inside SWAGGER_DIR
-    default_base_url: str    # localhost default (docker-compose port mapping)
+    swagger_path: Path       # absolute path of the offline swagger file
+    default_base_url: str    # local default (e.g. docker-compose port mapping)
     env_var: str             # env var that overrides the base URL
     is_auth_issuer: bool = False  # service that issues JWT tokens
-
-    @property
-    def swagger_path(self) -> Path:
-        return SWAGGER_DIR / self.swagger_file
 
     @property
     def base_url(self) -> str:
         return os.environ.get(self.env_var, self.default_base_url).rstrip("/")
 
 
-# Order matters: services are processed in dependency order
-# (auth issues tokens, order depends on product for productId resolution).
+def _load_config(path: Path) -> dict:
+    if not path.is_file():
+        raise SystemExit(
+            f"OpenAPI tools config not found: {path}. "
+            "Set OPENAPI_TOOLS_CONFIG to your openapi-tools.json "
+            "(see docs/framework/python-tooling.md).")
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+CONFIG = _load_config(CONFIG_PATH)
+CONFIG_DIR = CONFIG_PATH.parent
+
+
+def _config_dir(key: str, default: str) -> Path:
+    return (CONFIG_DIR / CONFIG.get("output", {}).get(key, default)).resolve()
+
+
+SWAGGER_DIR = (CONFIG_DIR / CONFIG.get("swaggerDir", "swagger")).resolve()
+COLLECTIONS_DIR = _config_dir("collections", "collections")
+K6_DIR = _config_dir("k6", "perf/k6")
+REPORTS_DIR = _config_dir("reports", "TestResults")
+COLLECTION_NAME = CONFIG.get("collectionName", "ApiTests")
+
+# Order matters: services are processed in config order — list the token
+# issuer and dependencies (e.g. product before order) first.
 SERVICES: dict[str, Service] = {
-    "auth": Service(
-        key="auth", name="AuthService", swagger_file="auth-swagger.json",
-        default_base_url="http://localhost:5300", env_var="AUTH_BASE_URL",
-        is_auth_issuer=True),
-    "product": Service(
-        key="product", name="ProductService", swagger_file="product-swagger.json",
-        default_base_url="http://localhost:5100", env_var="PRODUCT_BASE_URL"),
-    "order": Service(
-        key="order", name="OrderService", swagger_file="order-swagger.json",
-        default_base_url="http://localhost:5200", env_var="ORDER_BASE_URL"),
+    entry["key"]: Service(
+        key=entry["key"],
+        name=entry.get("name", entry["key"]),
+        swagger_path=SWAGGER_DIR / entry["swagger"],
+        default_base_url=entry["baseUrl"],
+        env_var=entry.get("envVar", f"{entry['key'].upper()}_BASE_URL"),
+        is_auth_issuer=bool(entry.get("authIssuer", False)))
+    for entry in CONFIG.get("services", [])
 }
 
 
