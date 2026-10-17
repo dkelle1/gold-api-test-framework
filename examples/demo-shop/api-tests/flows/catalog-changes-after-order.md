@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **ID** | FLOW-SHOP-03 |
-| **Status** | ready |
+| **Status** | implemented |
 | **Test** | `DemoShop.Tests/EndToEnd/CatalogChangesAfterOrderTests.cs` → `CatalogChanges_DoNotAlterPlacedOrders_ButApplyToNewOnes` |
 | **Rules** | R-PROD-3, R-PROD-4, R-PROD-5, R-ORD-2, R-ORD-3, R-ORD-4, R-ORD-8 |
 

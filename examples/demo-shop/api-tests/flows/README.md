@@ -10,7 +10,7 @@ The test code in `DemoShop.Tests/EndToEnd/` is generated from these descriptions
 |----|------|--------|------|
 | FLOW-SHOP-01 | [New customer orders and receives a shipment](customer-journey.md#flow-shop-01--new-customer-orders-and-receives-a-shipment) | implemented | `CustomerJourneyTests.NewCustomer_BrowsesOrdersAndReceivesShipment` |
 | FLOW-SHOP-02 | [A product removed from the catalog can no longer be ordered](customer-journey.md#flow-shop-02--a-product-removed-from-the-catalog-can-no-longer-be-ordered) | implemented | `CustomerJourneyTests.ProductRemovedFromCatalog_CanNoLongerBeOrdered` |
-| FLOW-SHOP-03 | [Catalog changes after an order is placed](catalog-changes-after-order.md) | ready | `CatalogChangesAfterOrderTests.CatalogChanges_DoNotAlterPlacedOrders_ButApplyToNewOnes` |
+| FLOW-SHOP-03 | [Catalog changes after an order is placed](catalog-changes-after-order.md) | implemented | `CatalogChangesAfterOrderTests.CatalogChanges_DoNotAlterPlacedOrders_ButApplyToNewOnes` |
 
 ## Adding a flow
 
