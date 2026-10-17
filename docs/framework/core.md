@@ -11,7 +11,8 @@ the `BaseTest` lifecycle. It contains no knowledge of any concrete service.
 - [Assertions](#assertions)
 - [Allure reporting and logging](#allure-reporting-and-logging)
 - [Test lifecycle — `BaseTest`](#test-lifecycle--basetest)
-- [Authentication](authentication.md) (separate page)
+- [Response validators](#response-validators)
+- [Authentication](authentication.md) and [contract validation](contracts.md) (separate pages)
 
 ---
 
@@ -146,7 +147,7 @@ product.Price.Amount.Should().Be(19.99m);
 
 ## Allure reporting and logging
 
-Every `ApiClient` call attaches the full request (method, URL, headers, query, body) and the full
+Every `ApiClient` call attaches the full request (method, URL, headers, query, body as JSON) and the full
 response (status, headers, pretty-printed body) to the current Allure step. Steps marked with
 `[AllureStep("...")]` become nested steps in the report. `AllureRequestLogger` also exposes
 `AttachJson`, `AttachDtoComparison` and `AttachFailureSummary` for custom attachments.
@@ -194,8 +195,32 @@ public class OrderTests : BaseTest
 Fixtures run sequentially by default. Global state (`TokenProvider`, `AuthenticationContext`,
 `ContainerProvider`) is static, so enable NUnit parallelism only for fixtures that do not change it.
 
+## Response validators
+
+Every `ApiClient` response is passed to the validators registered in `ResponseValidators`
+(`IResponseValidator`) after Allure logging. A validator that throws fails the test at that request.
+[Contract validation](contracts.md) is one; register your own for other cross-cutting checks:
+
+```csharp
+public sealed class NoServerErrors : IResponseValidator
+{
+    public void Validate(ResponseValidationContext context)
+    {
+        if ((int)context.Response.StatusCode >= 500)
+            throw new AssertionException($"{context.ServiceName} {context.Request.Method} {context.PathTemplate}: {(int)context.Response.StatusCode}");
+    }
+}
+
+ResponseValidators.Register(new NoServerErrors());   // in the global setup
+```
+
+The context carries the service name, the request, the route template (for requests built with
+`RequestBuilder`) and the response. `RequestBuilder.WithoutResponseValidation()` skips all validators
+for one request.
+
 ## See also
 
+- [Contract validation](contracts.md) — every response checked against OpenAPI
 - [Authentication](authentication.md) — providers, identities, per-request control
 - [Generators](generators.md) — builders and test scaffolds from OpenAPI
 - [Tutorial](../tutorial/README.md) — all of this used end to end

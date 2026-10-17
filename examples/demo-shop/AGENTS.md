@@ -22,8 +22,10 @@ uses the framework. Read the root `AGENTS.md` first; these rules add to it.
 ## Contract rules
 
 - The contract states `required` request fields, every documented status code (401 on secured
-  operations, 403 where roles apply), real nullability, and enums **as integers** (that is what the
-  services send: `OrderStatus`, `ShippingMethod`).
+  operations, 403 where roles apply), real nullability, enums **as integers** (that is what the
+  services send: `OrderStatus`, `ShippingMethod`) and error bodies (`ErrorResponse` on 400/404/409).
+- Contract validation runs in **Fail** mode on every response (`appsettings.test.json`). A contract
+  violation is a finding: fix the contract or report the service bug — never opt out to get green.
 - Contract change → DTOs → `generator.json` run → Python generators → commit everything together.
 - After `scripts/refresh-swagger.ps1`, review the diff and keep the curated parts.
 

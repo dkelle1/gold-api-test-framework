@@ -37,7 +37,9 @@ for ASP.NET + Swashbuckle), from the API team, or written by hand.
    - every response code a caller can get, including `401` on secured operations and `403`
      where roles matter,
    - `nullable` only where the API really returns `null`,
-   - enum representation exactly as on the wire.
+   - enum representation exactly as on the wire,
+   - error bodies (e.g. `{"message": "..."}` on 400/404/409) as a schema — contract validation
+     rejects undocumented bodies.
 
 ### How it works…
 

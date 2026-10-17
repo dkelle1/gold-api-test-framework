@@ -29,6 +29,7 @@
 | Runtime: config, clients, requests, retries, assertions, Allure, `BaseTest` | [framework/core.md](framework/core.md) | `framework/src/ApiTestFramework.Core` |
 | Authentication modes, identities, per-request auth | [framework/authentication.md](framework/authentication.md) | `framework/src/ApiTestFramework.Core/Auth` |
 | Builders and test scaffolds from OpenAPI, `generator.json` | [framework/generators.md](framework/generators.md) | `framework/src/ApiTestFramework.OpenApi`, `.Generator.Cli` |
+| Contract validation of every response, coverage report | [framework/contracts.md](framework/contracts.md) | `framework/src/ApiTestFramework.Contracts` |
 | Postman/Bruno, k6, smoke, fuzz, mock, `openapi-tools.json` | [framework/python-tooling.md](framework/python-tooling.md) | `tools/` |
 | GitHub Actions and Jenkins | [ci.md](ci.md) | `.github/workflows/tests.yml`, `Jenkinsfile` |
 | Framework unit tests | — | `framework/tests/ApiTestFramework.Framework.Tests` |

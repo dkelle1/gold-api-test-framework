@@ -43,8 +43,9 @@ Create or extend `DemoShop.Tests/<Service>/<Topic>Tests.cs` — see [templates.m
 - Arrange with builders / data generators and **unique values** (`$"x-{Guid.NewGuid():N}"`).
 - `RegisterCleanup(...)` immediately after each create, via an actor allowed to delete
   (demo shop: products are deleted as `TestIdentities.Admin`).
-- Assert status **and** body/side effects (`ShouldHaveData()`, then FluentAssertions); for forbidden
-  operations assert that nothing changed.
+- Assert status **and** business meaning (`ShouldHaveData()`, then FluentAssertions); for forbidden
+  operations assert that nothing changed. Schema conformance of every response is checked
+  automatically (contract validation, Fail mode) — don't re-assert field types by hand.
 - 401: `RequestBuilder...WithoutAuth()`; 403: `steps.AsIdentity(TestIdentities.User)`.
 - Assertions that hold on a shared database ("contains mine", "only matching") — no global counts.
 
@@ -64,4 +65,5 @@ or the contract is wrong — never weaken the assertion just to pass.
 - [ ] Contract documents every tested status code
 - [ ] Steps cover the operation; no HTTP code in the test except deliberate anonymous/malformed calls
 - [ ] Tests own their data and clean up; they pass twice in a row against the same database
-- [ ] No generated file edited by hand
+- [ ] No generated file edited by hand; no `WithoutResponseValidation()` added to get green
+- [ ] The coverage report (`contract-coverage.md`) shows the new responses as exercised
