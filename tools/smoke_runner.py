@@ -21,6 +21,8 @@ Usage:
     python3 tools/smoke_runner.py --list          # show the plan, no requests
     python3 tools/smoke_runner.py --json out.json # machine-readable report
     python3 tools/smoke_runner.py --no-auth-checks
+    python3 tools/smoke_runner.py --role Admin    # register the smoke user with a role
+                                                  # (needed for admin-only endpoints)
 
 Base URLs come from env vars (AUTH_BASE_URL, PRODUCT_BASE_URL, ORDER_BASE_URL)
 with localhost docker-compose defaults. Exit code 0 = all green, 1 = failures.
@@ -30,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -200,8 +203,10 @@ def prepare_body(endpoint: Endpoint, spec: dict, state: RunState) -> dict | None
     return body
 
 
-def acquire_token(state: RunState) -> bool:
-    """Register a unique user via the auth issuer and capture the JWT."""
+def acquire_token(state: RunState, role: str | None = None) -> bool:
+    """Register a unique user via the auth issuer and capture the JWT.
+    When role is given it is written to the register payload's role field
+    (if the schema has one), e.g. to reach admin-only endpoints."""
     auth_entry = next(((s, sp, eps) for s, sp, eps in load_all()
                        if s.is_auth_issuer), None)
     if auth_entry is None:
@@ -221,6 +226,8 @@ def acquire_token(state: RunState) -> bool:
             body[key] = f"smoke_{uniq}"
         elif "email" in key.lower():
             body[key] = f"smoke_{uniq}@example.com"
+        elif role and key.lower() == "role":
+            body[key] = role
 
     url = service.base_url + register.path
     try:
@@ -332,6 +339,9 @@ def main() -> int:
                         help="write a machine-readable JSON report")
     parser.add_argument("--no-auth-checks", action="store_true",
                         help="skip the anonymous-401 negative checks")
+    parser.add_argument("--role", default=os.environ.get("SMOKE_ROLE"),
+                        help="role for the registered smoke user, e.g. Admin "
+                             "(default: env SMOKE_ROLE, else the schema example)")
     args = parser.parse_args()
 
     plan = [(s, sp, sorted(eps, key=crud_sort_key)) for s, sp, eps in load_all()
@@ -349,7 +359,7 @@ def main() -> int:
     needs_token = any(ep.requires_auth for _, _, eps in plan for ep in eps)
 
     print("── smoke run ──────────────────────────────────────────────")
-    if needs_token and not acquire_token(state):
+    if needs_token and not acquire_token(state, args.role):
         print("\ncannot acquire JWT — aborting (is the auth service running?)")
         _summarize(state, args.json)
         return 1

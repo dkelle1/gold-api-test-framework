@@ -1,5 +1,7 @@
 # API Test Framework
 
+[![Tests](https://github.com/dkelle1/gold-api-test-framework/actions/workflows/tests.yml/badge.svg?branch=develop)](https://github.com/dkelle1/gold-api-test-framework/actions/workflows/tests.yml)
+
 Complete solution with three .NET 8 microservices and a generic API test framework with pluggable authentication.
 
 > **Reusing this framework for another product/company?** See
@@ -125,6 +127,20 @@ dotnet test tests/ApiTestFramework.Tests
 # Requires allure CLI (install via: scoop install allure)
 allure serve TestResults/allure-results
 ```
+
+### 6. Run everything in GitHub Actions
+The [`Tests`](.github/workflows/tests.yml) workflow runs automatically on every pull request
+and push to `develop`, and on demand: **Actions → Tests → Run workflow** (optionally with an
+NUnit filter such as `FullyQualifiedName~OrderService`).
+
+| Job | What runs |
+|-----|-----------|
+| **Build & unit tests** | `dotnet build`, `Category=Unit` tests, Python smoke runner against the in-memory mock |
+| **All tests** | `docker compose up --wait` (SQL Server, Redis, 3 services) → the whole NUnit suite → Python smoke & contract checks against the live stack |
+
+Each run publishes a summary on the run page and uploads artifacts: TRX results, raw Allure
+results, a generated **Allure HTML report** (`allure-report/index.html`), smoke reports and
+the service logs.
 
 ## Project Structure
 ```
