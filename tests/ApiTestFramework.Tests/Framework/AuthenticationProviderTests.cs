@@ -24,9 +24,8 @@ public class AuthenticationProviderTests : BaseTest
 {
     private IAuthenticationProvider _originalProvider = null!;
 
-    public override void OneTimeSetUp()
+    protected override void OnFixtureSetUp()
     {
-        base.OneTimeSetUp();
         _originalProvider = AuthenticationContext.Provider;
     }
 

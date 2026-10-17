@@ -101,9 +101,11 @@ public class MyTest : BaseTest
 {
     private ProductServiceSteps _steps = null!;
 
-    public override void OneTimeSetUp()
+    // Use the OnFixtureSetUp hook, not your own [OneTimeSetUp]: BaseTest catches
+    // failures here and reports every test as failed in Allure (a throwing
+    // [OneTimeSetUp] makes the tests vanish from the report).
+    protected override void OnFixtureSetUp()
     {
-        base.OneTimeSetUp();
         _steps = new ProductServiceSteps();
     }
 
@@ -111,6 +113,9 @@ public class MyTest : BaseTest
     public async Task MyScenario()
     {
         var product = await _steps.CreateProductAsync();
+        // optional: runs in TearDown whatever the outcome (LIFO, failures ignored)
+        RegisterCleanup(() => _steps.AsIdentity("admin").DeleteProductAsync(product.Id));
+
         var response = await _steps.GetProductAsync(product.Id);
         response.ShouldHaveStatusCode(HttpStatusCode.OK);
         response.ShouldHaveData().Price.Amount.Should().Be(product.Price.Amount);

@@ -27,7 +27,7 @@ mock server, diagnostics), not a test layer.
 - **ApiTestFramework.Steps** — Step classes per service, generated fluent test-data builders (+ partial customizations), Bogus data generators
 - **ApiTestFramework.OpenApi** — OpenAPI spec loader, schema extractor, builder & test-case scaffolders
 - **ApiTestFramework.Generator.Cli** — console tool that regenerates builders and test scaffolds from swagger
-- **ApiTestFramework.Tests** — NUnit test fixtures (43 tests)
+- **ApiTestFramework.Tests** — NUnit test fixtures (45 tests)
 
 ## Tech Stack
 | Component | Technology |
@@ -157,7 +157,7 @@ the service logs.
 │   │       └── Custom/                 # hand-written partial halves (survive regeneration)
 │   ├── ApiTestFramework.OpenApi/       # OpenAPI loader, SchemaExtractor, BuilderScaffolder, TestCaseScaffolder
 │   ├── ApiTestFramework.Generator.Cli/ # dotnet run → regenerates builders + test scaffolds
-│   └── ApiTestFramework.Tests/         # NUnit test fixtures (Auth, Product, Order, Framework — 43 tests)
+│   └── ApiTestFramework.Tests/         # NUnit test fixtures (Auth, Product, Order, Framework — 45 tests)
 │       └── Generated/                  # *.cs.txt test scaffolds (promote to .cs by hand)
 ├── tools/                              # Generic OpenAPI-driven Python tooling (see tools/README.md)
 │   ├── openapi_common.py               #   shared lib: service registry, spec parsing, payload generation
@@ -271,6 +271,28 @@ var response = await client.SendAsync<Product>(
 ### Allure Reporting
 Every request/response is automatically attached to the Allure report. On assertion failures, detailed failure info including the response body is logged. DTO comparison results (expected vs actual) are attached for full visibility.
 
+### Test Lifecycle (`BaseTest`)
+```csharp
+public class MyTests : BaseTest
+{
+    private ProductServiceSteps _steps = null!;
+
+    // Fixture setup goes into the OnFixtureSetUp hook (not a custom [OneTimeSetUp]).
+    // If it throws, every test is reported as failed in Allure with the root cause —
+    // a throwing [OneTimeSetUp] would make the tests disappear from the report.
+    protected override void OnFixtureSetUp() => _steps = new ProductServiceSteps();
+
+    [Test]
+    public async Task Scenario()
+    {
+        var product = await _steps.CreateProductAsync();
+        // Runs in TearDown whatever the test outcome; LIFO order, failures are logged and ignored
+        RegisterCleanup(() => _steps.AsIdentity("admin").DeleteProductAsync(product.Id));
+        // ...
+    }
+}
+```
+
 ### Steps Usage
 ```csharp
 // AuthServiceSteps — get a token
@@ -363,7 +385,7 @@ response.ShouldMatchDtoExcluding(expectedProduct,
 | AuthService | 7 | Register, login, duplicate user, wrong password, unauthorized access |
 | ProductService | 11 | Create, get, get all, update, delete (valid & invalid scenarios) + role-based authorization (admin vs user vs anonymous) |
 | OrderService | 11 | Create (single/multi-item, nested address+shipping, invalid product, empty items), get, get all, update (nested customer), delete, full lifecycle |
-| Framework | 14 | Unit tests for the pluggable authentication layer (providers, factory, RequestBuilder injection, WithoutAuth/AsIdentity precedence) — run without live services |
+| Framework | 16 | Unit tests for the pluggable authentication layer (providers, factory, RequestBuilder injection, WithoutAuth/AsIdentity precedence) and BaseTest cleanup — run without live services |
 
 ## License
 
