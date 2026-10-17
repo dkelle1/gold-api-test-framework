@@ -112,6 +112,21 @@ public class ProductServiceSteps
     }
 
     /// <summary>
+    /// Gets all products of a category.
+    /// </summary>
+    [AllureStep("Get products in category: {category}")]
+    public async Task<RestResponse<List<Product>>> GetProductsByCategoryAsync(string category)
+    {
+        var response = await _client.SendAsync<List<Product>>(
+            Authorized(RequestBuilder.Create()
+                .WithMethod(Method.Get)
+                .WithPath(ProductServiceRoutes.ByCategory)
+                .WithPathSegment("category", category)));
+
+        return response;
+    }
+
+    /// <summary>
     /// Updates a product.
     /// </summary>
     [AllureStep("Update product with Id: {id}")]

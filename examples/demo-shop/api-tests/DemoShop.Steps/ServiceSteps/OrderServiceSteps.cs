@@ -117,6 +117,15 @@ public class OrderServiceSteps
     }
 
     /// <summary>
+    /// Attempts to create an order and returns the raw response.
+    /// Use for negative scenarios (validation errors, unknown products, auth failures).
+    /// </summary>
+    [AllureStep("Attempt to create an order (raw response)")]
+    public async Task<RestResponse<Order>> TryCreateOrderAsync(CreateOrderRequest createRequest)
+        => await _client.SendAsync<Order>(
+            Authorized(RequestFactory.Post(OrderServiceRoutes.Base, createRequest)));
+
+    /// <summary>
     /// Gets an order by Id.
     /// </summary>
     [AllureStep("Get order by Id: {id}")]
