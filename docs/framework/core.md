@@ -12,6 +12,7 @@ the `BaseTest` lifecycle. It contains no knowledge of any concrete service.
 - [Allure reporting and logging](#allure-reporting-and-logging)
 - [Test lifecycle — `BaseTest`](#test-lifecycle--basetest)
 - [Response validators](#response-validators)
+- [Waiting for eventual consistency](#waiting-for-eventual-consistency)
 - [Authentication](authentication.md) and [contract validation](contracts.md) (separate pages)
 
 ---
@@ -217,6 +218,19 @@ ResponseValidators.Register(new NoServerErrors());   // in the global setup
 The context carries the service name, the request, the route template (for requests built with
 `RequestBuilder`) and the response. `RequestBuilder.WithoutResponseValidation()` skips all validators
 for one request.
+
+## Waiting for eventual consistency
+
+`Eventually` (`ApiTestFramework.Core.Waiting`) replaces `Thread.Sleep` when an effect appears
+asynchronously:
+
+| Method | Behaviour |
+|--------|-----------|
+| `UntilAsync(probe, condition, expectation, timeout?, pollInterval?)` | calls `probe` until `condition` holds and returns that value; probe exceptions count as "not yet" |
+| `SatisfiesAsync(assertion, expectation, timeout?, pollInterval?)` | re-runs an assertion block (use FluentAssertions inside) until it passes |
+
+Defaults: 10 s budget, 250 ms interval (`Eventually.DefaultTimeout`, `DefaultPollInterval`). A timeout
+fails with an `AssertionException` naming the expectation, the attempts and the last observed value.
 
 ## See also
 

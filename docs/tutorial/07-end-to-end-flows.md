@@ -11,11 +11,70 @@ The finished code is
 
 In this chapter:
 
+- [Describing the flow before writing code](#describing-the-flow-before-writing-code)
+- [Generating the test with Claude](#generating-the-test-with-claude)
 - [Modelling actors as identities](#modelling-actors-as-identities)
 - [Writing a customer journey](#writing-a-customer-journey)
 - [Checking cross-service consistency](#checking-cross-service-consistency)
 - [Keeping journeys isolated](#keeping-journeys-isolated)
 - [Running e2e flows separately and against deployed environments](#running-e2e-flows-separately-and-against-deployed-environments)
+- [Waiting for asynchronous effects](#waiting-for-asynchronous-effects)
+
+---
+
+## Describing the flow before writing code
+
+### Getting ready
+
+Two documents carry the **expectations** of every flow — the test code only implements them:
+
+- `examples/demo-shop/api-tests/domain-rules.md` — numbered business rules (`R-ORD-3`: the unit price
+  is captured when the order is placed, …), written as *intended* behaviour;
+- `examples/demo-shop/api-tests/flows/*.md` — one file per flow: actors, numbered steps, the expected
+  outcome of every step and the rules it relies on.
+
+### How to do it…
+
+1. Copy [the flow template](../../.claude/skills/write-e2e-flow/flow-template.md) to
+   `flows/<kebab-name>.md`.
+2. Fill in actors, preconditions and steps. Every step gets an **expected outcome in business terms**
+   (an amount, a state, a rejection) and the rule IDs it relies on. See
+   [`catalog-changes-after-order.md`](../../examples/demo-shop/api-tests/flows/catalog-changes-after-order.md).
+3. Anything you are not sure about goes under *Open questions* — not into the test author's head.
+
+### How it works…
+
+The flow file is the **oracle**. A generated (or hand-written) test can only be as right as its
+expectations; taking them from a reviewed description instead of from what the system returns is what
+keeps a test from faithfully encoding a bug.
+
+---
+
+## Generating the test with Claude
+
+### How to do it…
+
+```text
+/write-e2e-flow examples/demo-shop/api-tests/flows/catalog-changes-after-order.md
+```
+
+or describe the flow in words — the skill first turns it into a flow file and asks about anything it
+would otherwise have to guess. It then checks the steps exist (adding missing ones), writes the test
+with one numbered block per flow step, runs it, and updates the flow file's status.
+
+### How it works…
+
+The `write-e2e-flow` skill ([`SKILL.md`](../../.claude/skills/write-e2e-flow/SKILL.md)) encodes the rules
+of this chapter: only existing steps, builders and identities; expectations only from the flow and the
+domain rules; and when the system disagrees with the flow, the deviation is **reported**, not
+"fixed" in the test. Other agents can follow the same file.
+
+### There's more…
+
+The FLOW-SHOP-03 test was generated this way from its description and compiled at the first attempt —
+[`CatalogChangesAfterOrderTests`](../../examples/demo-shop/api-tests/DemoShop.Tests/EndToEnd/CatalogChangesAfterOrderTests.cs).
+Contract validation checks every response of the flow on the side, so the generated test only
+asserts business outcomes.
 
 ---
 
@@ -224,6 +283,36 @@ deletes a product itself (as in the consistency test) does not break its own cle
   against staging).
 - Retries apply only to idempotent operations and to requests that never reached the server, so
   enabling them cannot create duplicate orders ([core reference](../framework/core.md#timeouts-and-retries)).
+
+---
+
+## Waiting for asynchronous effects
+
+### How to do it…
+
+When a service applies a change asynchronously (events, queues, background jobs), poll for the
+expected outcome instead of sleeping:
+
+```csharp
+var shipped = await Eventually.UntilAsync(
+    () => myOrders.GetOrderAsync(orderId),
+    r => r.Data?.Status == OrderStatus.Shipped,
+    "order is shipped");
+
+await Eventually.SatisfiesAsync(async () =>
+{
+    var history = await myOrders.GetOrdersByCustomerEmailAsync(email);
+    history.Data.Should().ContainSingle(o => o.Id == orderId);   // FluentAssertions inside
+}, "order appears in the history");
+```
+
+### How it works…
+
+`Eventually` (namespace `ApiTestFramework.Core.Waiting`) polls every 250 ms for up to 10 s (configurable
+per call or via `Eventually.DefaultTimeout`/`DefaultPollInterval`). On timeout it fails with the
+expectation, the number of attempts and the last observed value (status and body for responses).
+Use FluentAssertions inside `SatisfiesAsync` — NUnit `Assert.*` failures are recorded immediately and
+cannot be retried.
 
 ## See also
 

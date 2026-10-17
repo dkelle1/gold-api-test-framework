@@ -18,6 +18,7 @@ namespace DemoShop.Tests.EndToEnd;
 /// End-to-end business flows across all three services and several identities,
 /// built only from the same steps, builders and identities the API tests use.
 /// Worked example of docs/tutorial/07-end-to-end-flows.md.
+/// Flows: examples/demo-shop/api-tests/flows/customer-journey.md (FLOW-SHOP-01, FLOW-SHOP-02).
 /// </summary>
 [TestFixture]
 [AllureSuite("End-to-end")]
@@ -38,7 +39,7 @@ public class CustomerJourneyTests : BaseTest
 
     [Test]
     [AllureSeverity(SeverityLevel.blocker)]
-    [AllureDescription("A new customer browses a category, orders two products, and follows the order until it ships")]
+    [AllureDescription("FLOW-SHOP-01: a new customer browses a category, orders two products, and follows the order until it ships")]
     public async Task NewCustomer_BrowsesOrdersAndReceivesShipment()
     {
         // 1. Catalog admin publishes two products in a fresh category
@@ -92,7 +93,7 @@ public class CustomerJourneyTests : BaseTest
 
     [Test]
     [AllureSeverity(SeverityLevel.critical)]
-    [AllureDescription("A product removed from the catalog by an admin can no longer be ordered (cross-service consistency)")]
+    [AllureDescription("FLOW-SHOP-02: a product removed from the catalog by an admin can no longer be ordered (cross-service consistency)")]
     public async Task ProductRemovedFromCatalog_CanNoLongerBeOrdered()
     {
         var product = await PublishProductAsync($"e2e-{Guid.NewGuid():N}"[..20], price: 10m);
