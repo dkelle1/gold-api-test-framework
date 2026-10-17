@@ -161,6 +161,16 @@ jobs:
         if: always()
         run: python scripts/ci/trx-summary.py "Example API tests" test-results/*.trx >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Contract coverage
+        if: always()
+        run: |
+          report=$(find examples -path "*/bin/*/contract-coverage/contract-coverage.md" | head -1)
+          if [ -n "$report" ]; then
+            mkdir -p contract-coverage
+            cp "$(dirname "$report")"/* contract-coverage/
+            cat "$report" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Collect Allure results & service logs
         if: always()
         run: |
@@ -185,6 +195,7 @@ jobs:
             test-results/
             allure-results/
             allure-report/
+            contract-coverage/
             live-swagger/
             service-logs.txt
           if-no-files-found: ignore

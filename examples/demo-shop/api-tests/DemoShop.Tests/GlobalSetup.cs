@@ -1,4 +1,5 @@
 using System.Net;
+using ApiTestFramework.Contracts;
 using Autofac;
 using DemoShop.Clients.AuthService;
 using ApiTestFramework.Core.Auth;
@@ -43,6 +44,10 @@ public class GlobalSetup
         });
 
         Log.Information("=== Container initialized ===");
+
+        // Every response is checked against the committed OpenAPI contracts
+        // (appsettings.test.json: ContractValidation) — including the setup calls below
+        ContractValidation.EnableFromConfiguration();
 
         // Acquire Bearer token via AuthService (direct call — no AllureStep context here)
         Log.Information("Acquiring Bearer token...");
@@ -109,6 +114,8 @@ public class GlobalSetup
     public void RunAfterAllTests()
     {
         Log.Information("=== Test Suite Finished ===");
+        ContractValidation.WriteCoverageReport();
+        ContractValidation.Disable();
         TokenProvider.Clear();
         ContainerProvider.Dispose();
         Log.CloseAndFlush();

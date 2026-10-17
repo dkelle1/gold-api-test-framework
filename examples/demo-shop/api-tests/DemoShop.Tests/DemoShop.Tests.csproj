@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\..\framework\src\ApiTestFramework.Core\ApiTestFramework.Core.csproj" />
+    <ProjectReference Include="..\..\..\..\framework\src\ApiTestFramework.Contracts\ApiTestFramework.Contracts.csproj" />
     <ProjectReference Include="..\DemoShop.Clients\DemoShop.Clients.csproj" />
     <ProjectReference Include="..\DemoShop.Steps\DemoShop.Steps.csproj" />
   </ItemGroup>
@@ -28,6 +29,10 @@
 
   <ItemGroup>
     <Content Include="appsettings.test.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- the committed contracts, for contract validation (ContractValidation:Specs) -->
+    <Content Include="..\DemoShop.Clients\swagger\*.json" LinkBase="swagger">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="allureConfig.json">
