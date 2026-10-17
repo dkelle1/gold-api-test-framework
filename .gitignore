@@ -46,3 +46,7 @@ Thumbs.db
 # Python tooling
 __pycache__/
 *.pyc
+
+# AI assistants: personal, uncommitted settings
+.claude/settings.local.json
+CLAUDE.local.md

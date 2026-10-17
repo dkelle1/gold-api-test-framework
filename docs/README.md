@@ -34,7 +34,9 @@
 | Framework unit tests | — | `framework/tests/ApiTestFramework.Framework.Tests` |
 | The example system under test | [examples/demo-shop/README.md](../examples/demo-shop/README.md) | `examples/demo-shop` |
 
-## Working with an AI coding assistant
+## Working with AI coding assistants
 
-[Advanced prompts](advanced-prompts.md) — ready-made prompts for extending the framework, adding
-coverage, hunting flaky tests and reviewing changes in this repository.
+- [AI assistants](ai-assistants.md) — how `AGENTS.md`, `CLAUDE.md`, skills, hooks and Copilot/Gemini
+  configuration fit together, and how to maintain them.
+- [Advanced prompts](advanced-prompts.md) — ready-made prompts for extending the framework, adding
+  coverage, hunting flaky tests and reviewing changes in this repository.
